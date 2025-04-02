@@ -1,36 +1,43 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Personal Portfolio - AI & Machine Learning Engineer
 
-## Getting Started
+## About Me
+I'm a skilled AI and machine learning engineer with a passion for developing intelligent systems that solve real-world problems. My expertise spans machine learning, large language models (LLMs), data engineering, and cybersecurity, allowing me to build comprehensive end-to-end solutions.
 
-First, run the development server:
+My portfolio showcases my work in predictive modeling, natural language processing, and interactive AI-driven applications.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## ML & AI Specializations
+- **Machine Learning:** Supervised learning models, time series prediction, custom validation techniques
+- **NLP & LLMs:** Building LLM-powered tools, sentiment analysis, text classification
+- **GPU Acceleration:** Leveraging CUDA and GPU computing for performance optimization
+- **Data Engineering:** Creating robust pipelines to support ML systems
+- **AI Application Development:** Web-based AI tools and interactive visualizations
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Featured Projects
+- **Stock Prediction Models:** Advanced supervised learning models for stock price movement classification with GPU acceleration (cuML), custom time series validation, and NLP-derived sentiment analysis
+- **LLM-powered Browsing Agent:** AI-driven browser automation that autonomously navigates web content
+- **Interactive 3D Skills Visualization:** Three.js-based representation of technical competencies
+- **FishFrenzy Game:** Browser-based game demonstrating 3D programming and physics simulation
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Technical Stack
+- **Languages:** Python (primary ML language), TypeScript/JavaScript
+- **Machine Learning:** scikit-learn, TensorFlow, PyTorch, cuML
+- **Data Processing:** SQL, Pandas, NumPy
+- **Web Technologies:** React, Next.js, Three.js
+- **AI Tools:** LLM frameworks, NLP libraries, Puppeteer for web automation
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Running the Project
+Open `http://localhost:3000` to view the portfolio.
 
-## Learn More
+## Features
+- **Interactive Visualizations:** 3D representations of skills and technologies
+- **Project Showcase:** Detailed descriptions of ML and AI projects
+- **FishFrenzy Game:** An interactive 3D game demonstrating programming capabilities
+- **Responsive Design:** Fully optimized for all device sizes
 
-To learn more about Next.js, take a look at the following resources:
+## Contact
+Feel free to reach out if you're interested in ML collaborations or have questions about my AI work!
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+---
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+> Built with Next.js and modern web technologies. Deployed on Vercel.
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
