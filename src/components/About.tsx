@@ -32,9 +32,9 @@ export default function About() {
                     <div className="absolute -top-10 left-1/2 transform -translate-x-1/2 w-24 h-24 bg-blue-50 rounded-full opacity-70 z-0"></div>
                     <h2 className="text-4xl font-bold text-center relative z-10">About Me</h2>
                     <div className="w-24 h-1 bg-blue-500 mx-auto mt-4 mb-6 rounded-full"></div>
-                    <p className="text-center text-gray-600 max-w-2xl mx-auto leading-relaxed text-lg">
+                    {/* <p className="text-center text-gray-600 max-w-2xl mx-auto leading-relaxed text-lg">
                     Software engineer specializing in AI, cybersecurity, and data engineering. Passionate about creating impactful solutions, solving challenging problems, and continuously exploring innovative technologies.
-                    </p>
+                    </p> */}
                 </motion.div>
 
                 <div className="grid md:grid-cols-2 gap-16 items-center">
@@ -45,7 +45,7 @@ export default function About() {
                         viewport={{ once: true }}
                         className="order-2 md:order-1"
                     >
-                        <div className="bg-white rounded-xl p-8 shadow-lg border border-gray-100 relative overflow-hidden">
+                        <div className="bg-white rounded-xl p-8 shadow-lg border border-gray-100 relative overflow-hidden mb-8">
                             {/* Background decorative element */}
                             <div className="absolute top-0 right-0 w-40 h-40 bg-blue-50 rounded-full -translate-y-1/2 translate-x-1/2 z-0"></div>
 
@@ -60,7 +60,7 @@ export default function About() {
                                 </h3>
 
                                 <p className="mb-4 text-gray-700 leading-relaxed">
-                                    I&apos;m Ron Hershkovitz, a software engineer dedicated to solving complex problems with innovative technology. 
+                                    I&apos;m Ron Hershkovitz, a software engineer dedicated to solving complex problems with innovative technology.
                                     My experience across AI, cybersecurity, and data engineering equips me to approach challenges comprehensively and creatively.
                                 </p>
 
@@ -110,6 +110,39 @@ export default function About() {
                                 </div>
                             </div>
                         </div>
+                        {/* Game Section - New Card */}
+                        <motion.div
+                            className="bg-white rounded-xl p-8 shadow-lg border border-gray-100 relative overflow-hidden mt-8"
+                        >
+                            <div className="absolute -top-4 -right-4 w-20 h-20 bg-green-50 rounded-full"></div>
+                            <div className="absolute -bottom-8 -left-8 w-32 h-32 bg-blue-50 rounded-full"></div>
+
+                            <div className="text-center relative z-10">
+                                <h3 className="text-xl font-semibold mb-4">Take a Break</h3>
+
+                                {!showGame ? (
+                                    <button
+                                        onClick={() => setShowGame(true)}
+                                        className="px-6 py-3 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-lg shadow-md hover:from-blue-600 hover:to-indigo-700 transition-all transform hover:scale-105 active:scale-95"
+                                    >
+                                        Wanna play a game? 🐠
+                                    </button>
+                                ) : (
+                                    <div className="space-y-4">
+                                        <FishFrenzy height="h-96" />
+                                        <button
+                                            onClick={() => setShowGame(false)}
+                                            className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
+                                        >
+                                            Close Game
+                                        </button>
+                                        <p className="text-sm text-gray-500 max-w-md mx-auto mt-2">
+                                            Eat smaller fish to grow bigger! Use arrow keys or WASD to move.
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
+                        </motion.div>
                     </motion.div>
 
                     <motion.div
@@ -192,39 +225,7 @@ export default function About() {
                                 </div>
                             </motion.div>
 
-                            {/* Game Section - New Card */}
-                            <motion.div
-                                className="bg-white rounded-xl p-8 shadow-lg border border-gray-100 relative overflow-hidden"
-                            >
-                                <div className="absolute -top-4 -right-4 w-20 h-20 bg-green-50 rounded-full"></div>
-                                <div className="absolute -bottom-8 -left-8 w-32 h-32 bg-blue-50 rounded-full"></div>
 
-                                <div className="text-center relative z-10">
-                                    <h3 className="text-xl font-semibold mb-4">Take a Break</h3>
-
-                                    {!showGame ? (
-                                        <button
-                                            onClick={() => setShowGame(true)}
-                                            className="px-6 py-3 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-lg shadow-md hover:from-blue-600 hover:to-indigo-700 transition-all transform hover:scale-105 active:scale-95"
-                                        >
-                                            Wanna play a game? 🐠
-                                        </button>
-                                    ) : (
-                                        <div className="space-y-4">
-                                            <FishFrenzy height="h-96" />
-                                            <button
-                                                onClick={() => setShowGame(false)}
-                                                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
-                                            >
-                                                Close Game
-                                            </button>
-                                            <p className="text-sm text-gray-500 max-w-md mx-auto mt-2">
-                                                Eat smaller fish to grow bigger! Use arrow keys or WASD to move.
-                                            </p>
-                                        </div>
-                                    )}
-                                </div>
-                            </motion.div>
                         </div>
                     </motion.div>
                 </div>
