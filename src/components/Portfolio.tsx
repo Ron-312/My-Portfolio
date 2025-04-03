@@ -1,10 +1,9 @@
 "use client";
 
 import { motion } from 'framer-motion';
-import { useState } from 'react';
 
 export default function Portfolio() {
-    const [hoveredProject, setHoveredProject] = useState<number | null>(null);
+    // const [hoveredProject, setHoveredProject] = useState<number | null>(null);
 
     const projects = [
         {
@@ -88,8 +87,8 @@ export default function Portfolio() {
                             transition={{ duration: 0.5, delay: index * 0.1 }}
                             viewport={{ once: true }}
                             className="group"
-                            onMouseEnter={() => setHoveredProject(project.id)}
-                            onMouseLeave={() => setHoveredProject(null)}
+                            // onMouseEnter={() => setHoveredProject(project.id)}
+                            // onMouseLeave={() => setHoveredProject(null)}
                         >
                             <div className="bg-white rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-shadow duration-300 border border-gray-200 h-full flex flex-col">
                                 {/* Image area with gradient overlay */}

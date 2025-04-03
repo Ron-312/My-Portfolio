@@ -69,7 +69,7 @@ export default function Hero() {
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ duration: 0.5 }}
                         >
-                            Hi, I'm <span className="text-blue-500">Ron Hershkovitz</span>
+                            Hi, I&apos;m <span className="text-blue-500">Ron Hershkovitz</span>
                         </motion.h1>
                         <motion.div
                             className="text-2xl md:text-3xl text-gray-700 mb-8 h-16"
@@ -188,7 +188,7 @@ export default function Hero() {
                                     width={320}
                                     height={320}
                                     className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105 filter brightness-110"
-                                    onError={(e) => {
+                                    onError={() => {
                                         console.error("Image failed to load");
                                         // Fallback handled by Next.js
                                     }}
@@ -203,7 +203,7 @@ export default function Hero() {
                                     width={320}
                                     height={320}
                                     className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105 filter brightness-105"
-                                    onError={(e) => {
+                                    onError={() => {
                                         console.error("Image failed to load");
                                         // Fallback handled by Next.js
                                     }}
@@ -216,7 +216,7 @@ export default function Hero() {
                                     width={320}
                                     height={320}
                                     className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                                    onError={(e) => {
+                                    onError={() => {
                                         console.error("Image failed to load");
                                         // Fallback handled by Next.js
                                     }}

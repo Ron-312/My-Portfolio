@@ -62,7 +62,7 @@ export default function Contact() {
                     <div className="w-24 h-1 bg-blue-500 mx-auto mb-6 rounded-full"></div>
                     <p className="max-w-xl mx-auto text-gray-600">
                         Have a project in mind or want to discuss a potential collaboration?
-                        I'd love to hear from you.
+                        I&apos;d love to hear from you.
                     </p>
                 </motion.div>
 

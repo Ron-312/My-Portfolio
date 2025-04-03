@@ -4,11 +4,23 @@ import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { motion } from 'framer-motion';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
-import { MTLLoader } from 'three/examples/jsm/loaders/MTLLoader.js';
 
 interface FishFrenzyProps {
     height?: string;
 }
+
+interface FullscreenElement extends HTMLDivElement {
+    mozRequestFullScreen?: () => Promise<void>;
+    webkitRequestFullscreen?: () => Promise<void>;
+    msRequestFullscreen?: () => Promise<void>;
+  }
+  
+  interface FullscreenDocument extends Document {
+    mozCancelFullScreen?: () => Promise<void>;
+    webkitExitFullscreen?: () => Promise<void>;
+    msExitFullscreen?: () => Promise<void>;
+  }
+  
 
 const fishTypes = [
     {
@@ -61,31 +73,32 @@ export default function FishFrenzy({ height = "h-96" }: FishFrenzyProps) {
 
     // Add this function to handle fullscreen toggle
     const toggleFullscreen = () => {
-        const gameElement = gameRef.current;
+        const gameElement = gameRef.current as FullscreenElement | null;
         if (!gameElement) return;
-
+    
         if (!isFullscreen) {
             // Enter fullscreen
             if (gameElement.requestFullscreen) {
                 gameElement.requestFullscreen();
-            } else if ((gameElement as any).mozRequestFullScreen) {
-                (gameElement as any).mozRequestFullScreen();
-            } else if ((gameElement as any).webkitRequestFullscreen) {
-                (gameElement as any).webkitRequestFullscreen();
-            } else if ((gameElement as any).msRequestFullscreen) {
-                (gameElement as any).msRequestFullscreen();
+            } else if (gameElement.mozRequestFullScreen) {
+                gameElement.mozRequestFullScreen();
+            } else if (gameElement.webkitRequestFullscreen) {
+                gameElement.webkitRequestFullscreen();
+            } else if (gameElement.msRequestFullscreen) {
+                gameElement.msRequestFullscreen();
             }
             setIsFullscreen(true);
         } else {
             // Exit fullscreen
-            if (document.exitFullscreen) {
-                document.exitFullscreen();
-            } else if ((document as any).mozCancelFullScreen) {
-                (document as any).mozCancelFullScreen();
-            } else if ((document as any).webkitExitFullscreen) {
-                (document as any).webkitExitFullscreen();
-            } else if ((document as any).msExitFullscreen) {
-                (document as any).msExitFullscreen();
+            const doc = document as FullscreenDocument;
+            if (doc.exitFullscreen) {
+                doc.exitFullscreen();
+            } else if (doc.mozCancelFullScreen) {
+                doc.mozCancelFullScreen();
+            } else if (doc.webkitExitFullscreen) {
+                doc.webkitExitFullscreen();
+            } else if (doc.msExitFullscreen) {
+                doc.msExitFullscreen();
             }
             setIsFullscreen(false);
         }
@@ -112,7 +125,6 @@ export default function FishFrenzy({ height = "h-96" }: FishFrenzyProps) {
 
     useEffect(() => {
         if (!gameRef.current || !gameStarted) return;
-        let frameCount = 0;
 
         setLoading(true);
         const currentRef = gameRef.current;
@@ -121,8 +133,8 @@ export default function FishFrenzy({ height = "h-96" }: FishFrenzyProps) {
         let isGameOver = false;
         let playerFish: THREE.Group;
         let playerFishModel: THREE.Group | null = null;
-        let fishList: { object: THREE.Object3D, speed: number, direction: THREE.Vector3, type: string, size: string, exactSize: number }[] = [];
-        let playerSpeed = 0.05;
+        const fishList: { object: THREE.Object3D, speed: number, direction: THREE.Vector3, type: string, size: string, exactSize: number }[] = [];
+        const playerSpeed = 0.05;
         let playerScore = 0;
         let currentPlayerSize = playerSize;
 
@@ -303,17 +315,6 @@ export default function FishFrenzy({ height = "h-96" }: FishFrenzyProps) {
             });
         }
 
-        function createPlayerFish(size: number): THREE.Group {
-            if (playerFishModel) {
-                const newFish = playerFishModel.clone();
-                const scaleFactor = size * 0.05;
-                newFish.scale.set(scaleFactor, scaleFactor, scaleFactor);
-                return newFish;
-            } else {
-                throw new Error("Player fish model not loaded");
-            }
-        }
-
         loadPlayerFish(currentPlayerSize)
             .then((model) => {
                 playerFish = model;
@@ -333,7 +334,7 @@ export default function FishFrenzy({ height = "h-96" }: FishFrenzyProps) {
                     animate();
                 }, 100);
             })
-            .catch((error) => {
+            .catch(() => {
             });
 
         function createFish(fishType: typeof fishTypes[0]) {
@@ -444,8 +445,8 @@ export default function FishFrenzy({ height = "h-96" }: FishFrenzyProps) {
         // Add this function to control fish population balance
         function spawnFish(count = 10) {
             // Calculate how many edible vs dangerous fish to spawn based on player size
-            let edibleFishCount = Math.ceil(count * 0.7); // At least 70% should be edible
-            let dangerousFishCount = count - edibleFishCount;
+            const edibleFishCount = Math.ceil(count * 0.7); // At least 70% should be edible
+            const dangerousFishCount = count - edibleFishCount;
 
             // Spawn fish that are smaller than player (edible)
             for (let i = 0; i < edibleFishCount; i++) {
