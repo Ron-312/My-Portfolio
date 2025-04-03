@@ -33,8 +33,7 @@ export default function About() {
                     <h2 className="text-4xl font-bold text-center relative z-10">About Me</h2>
                     <div className="w-24 h-1 bg-blue-500 mx-auto mt-4 mb-6 rounded-full"></div>
                     <p className="text-center text-gray-600 max-w-2xl mx-auto leading-relaxed text-lg">
-                        Software engineer with expertise in AI, cybersecurity, and data engineering.
-                        Passionate about problem-solving, optimizing real-world solutions, and constantly exploring new technologies.
+                    Software engineer specializing in AI, cybersecurity, and data engineering. Passionate about creating impactful solutions, solving challenging problems, and continuously exploring innovative technologies.
                     </p>
                 </motion.div>
 
@@ -61,8 +60,8 @@ export default function About() {
                                 </h3>
 
                                 <p className="mb-4 text-gray-700 leading-relaxed">
-                                    I&apos;m Ron Hershkovitz, a software engineer passionate about solving complex problems through technology.
-                                    My expertise spans AI, cybersecurity, and data engineering, allowing me to approach challenges from multiple angles.
+                                    I&apos;m Ron Hershkovitz, a software engineer dedicated to solving complex problems with innovative technology. 
+                                    My experience across AI, cybersecurity, and data engineering equips me to approach challenges comprehensively and creatively.
                                 </p>
 
                                 <p className="mb-6 text-gray-700 leading-relaxed">
@@ -84,13 +83,13 @@ export default function About() {
                                             <div className="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-blue-500"></div>
                                             <h5 className="font-medium text-gray-900">Fullstack Web Coding Bootcamp</h5>
                                             <p className="text-sm text-gray-600">Coding Academy, 2020</p>
-                                            <p className="text-sm text-gray-700 mt-1">640-hour intensive program focused on full-stack development with technologies including JavaScript, React.js, Node.js, and more.</p>
+                                            <p className="text-sm text-gray-700 mt-1">640-hour intensive program in full-stack web development, covering JavaScript, React.js, Node.js, databases, and REST APIs</p>
                                         </div>
                                         <div className="relative border-l-2 border-blue-200 pl-4">
                                             <div className="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-blue-500"></div>
                                             <h5 className="font-medium text-gray-900">B.A. Technologies & Visual Media (Music)</h5>
                                             <p className="text-sm text-gray-600">Bar Ilan University, 2017-2019</p>
-                                            <p className="text-sm text-gray-700 mt-1">Developed software for live concert presentations using Max/MSP.</p>
+                                            <p className="text-sm text-gray-700 mt-1">Developed software tools for live music performances using Max/MSP.</p>
                                         </div>
                                     </div>
                                 </div>
@@ -174,19 +173,19 @@ export default function About() {
                                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-500 mr-2 mt-0.5 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
                                                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                                                 </svg>
-                                                <span>Building custom tools that automate complex workflows</span>
+                                                <span>Building custom automation tools to simplify complex workflows.</span>
                                             </li>
                                             <li className="flex items-start">
                                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-500 mr-2 mt-0.5 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
                                                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                                                 </svg>
-                                                <span>Leveraging AI and data to extract meaningful insights</span>
+                                                <span>Leveraging AI and data analytics for actionable insights.</span>
                                             </li>
                                             <li className="flex items-start">
                                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-500 mr-2 mt-0.5 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
                                                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                                                 </svg>
-                                                <span>Creating secure, scalable systems for complex requirements</span>
+                                                <span>Developing secure, scalable systems tailored to complex business requirements.</span>
                                             </li>
                                         </ul>
                                     </div>
