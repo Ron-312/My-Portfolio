@@ -13,14 +13,13 @@ interface FullscreenElement extends HTMLDivElement {
     mozRequestFullScreen?: () => Promise<void>;
     webkitRequestFullscreen?: () => Promise<void>;
     msRequestFullscreen?: () => Promise<void>;
-  }
-  
-  interface FullscreenDocument extends Document {
+}
+
+interface FullscreenDocument extends Document {
     mozCancelFullScreen?: () => Promise<void>;
     webkitExitFullscreen?: () => Promise<void>;
     msExitFullscreen?: () => Promise<void>;
-  }
-  
+}
 
 const fishTypes = [
     {
@@ -75,7 +74,7 @@ export default function FishFrenzy({ height = "h-96" }: FishFrenzyProps) {
     const toggleFullscreen = () => {
         const gameElement = gameRef.current as FullscreenElement | null;
         if (!gameElement) return;
-    
+
         if (!isFullscreen) {
             // Enter fullscreen
             if (gameElement.requestFullscreen) {
@@ -137,7 +136,6 @@ export default function FishFrenzy({ height = "h-96" }: FishFrenzyProps) {
         const playerSpeed = 0.05;
         let playerScore = 0;
         let currentPlayerSize = playerSize;
-
 
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0x0077be);
@@ -325,7 +323,6 @@ export default function FishFrenzy({ height = "h-96" }: FishFrenzyProps) {
                 // const axesHelper = new THREE.AxesHelper(5);
                 // playerFish.add(axesHelper);
 
-
                 scene.add(playerFish);
                 setLoading(false);
 
@@ -424,7 +421,6 @@ export default function FishFrenzy({ height = "h-96" }: FishFrenzyProps) {
                     }
                 });
 
-
                 scene.add(object);
 
                 fishList.push({
@@ -509,7 +505,7 @@ export default function FishFrenzy({ height = "h-96" }: FishFrenzyProps) {
             if (!playerFish) return;
 
             // Use player's exact size for collision
-            const playerRadius = currentPlayerSize * 0.6; // Using a forgiving radius
+            const playerRadius = currentPlayerSize * 1;
             const playerPos = playerFish.position.clone();
 
             // Loop over the fish list (backwards so removal is safe)
@@ -519,7 +515,7 @@ export default function FishFrenzy({ height = "h-96" }: FishFrenzyProps) {
                 const fishData = fishList[i];
 
                 // Use the fish's exact size for collision
-                const fishRadius = fishData.exactSize * 0.6; // Adjusted for forgiving collisions
+                const fishRadius = fishData.exactSize * 1;
 
                 const distance = playerPos.distanceTo(fishPos);
                 const collisionThreshold = playerRadius + fishRadius;
@@ -563,7 +559,6 @@ export default function FishFrenzy({ height = "h-96" }: FishFrenzyProps) {
                 }
             }
         }
-
 
         function createEatingEffect(position: THREE.Vector3, color: number) {
             const particleCount = 2000; // Doubled from 2000
@@ -634,7 +629,6 @@ export default function FishFrenzy({ height = "h-96" }: FishFrenzyProps) {
             }
             cancelAnimationFrame(animationFrameId);
         }
-
 
         // Increase these values for faster rotation
         const rotationAcceleration = 0.02; // Increased from 0.01
@@ -728,7 +722,6 @@ export default function FishFrenzy({ height = "h-96" }: FishFrenzyProps) {
             const lookTarget = playerFish.position.clone().add(forward.clone().multiplyScalar(lookAheadDistance));
             camera.lookAt(lookTarget);
 
-
             // In your animate function, modify the enemy fish movement section:
 
             // -------------------- ENEMY FISH MOVEMENT ---------------------------
@@ -794,16 +787,13 @@ export default function FishFrenzy({ height = "h-96" }: FishFrenzyProps) {
             // (Assumes you have a checkCollision function)
             checkCollision();
 
-
             // -------------------- SPAWN NEW FISH OCCASIONALLY ----------
             if (Date.now() % 2000 < 20) {
                 spawnFish(3);
             }
 
-
             // -------------------- PARTICLES MOTION ----------------------
             particles.rotation.y += 0.0001;
-
 
             // -------------------- RENDER THE SCENE ----------------------
             renderer.render(scene, camera);
