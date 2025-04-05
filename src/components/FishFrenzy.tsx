@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
-import { motion } from 'framer-motion';
+// import { motion } from 'framer-motion';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
 
 // Add these constants at the top of your component
@@ -138,7 +138,7 @@ export default function FishFrenzy({ height = "h-96" }: FishFrenzyProps) {
     useEffect(() => {
         if (!gameRef.current || !gameStarted) return;
 
-        let invulnerableUntil = Date.now() + 3000; // 3 seconds of immunity
+        const invulnerableUntil = Date.now() + 3000; // 3 seconds of immunity
 
         setLoading(true);
         const currentRef = gameRef.current;
