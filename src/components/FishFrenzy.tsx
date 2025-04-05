@@ -80,8 +80,30 @@ export default function FishFrenzy({ height = "h-96" }: FishFrenzyProps) {
     const [loading, setLoading] = useState(false);
     const [isFullscreen, setIsFullscreen] = useState(false);
 
-    // Add a brief invulnerability period after game start
-    // let invulnerableUntil = Date.now() + 3000; // 3 seconds of immunity
+    // Joystick controls
+    const [joystickActive, setJoystickActive] = useState(false);
+    const [joystickPosition, setJoystickPosition] = useState({ x: 0, y: 0 });
+    const [joystickBasePosition, setJoystickBasePosition] = useState({ x: 0, y: 0 });
+    const joystickRef = useRef<HTMLDivElement>(null);
+    const isTouchDevice = useRef(false);
+
+    useEffect(() => {
+        const checkTouch = () => {
+            const isTouchCapable = (
+                'ontouchstart' in window ||
+                navigator.maxTouchPoints > 0 ||
+                (navigator as any).msMaxTouchPoints > 0
+            );
+            console.log("Is touch device detected:", isTouchCapable);
+            isTouchDevice.current = isTouchCapable;
+        };
+
+        checkTouch();
+        window.addEventListener('touchstart', () => {
+            isTouchDevice.current = true;
+        }, { once: true });
+
+    }, []);
 
     // Add this function to handle fullscreen toggle
     const toggleFullscreen = () => {
@@ -536,11 +558,11 @@ export default function FishFrenzy({ height = "h-96" }: FishFrenzyProps) {
 
         function checkCollision() {
             if (!playerFish) return;
-            
+
             // Increment frame counter and only check collisions every other frame
             frameCount++;
             if (frameCount % 2 !== 0) return;
-            
+
             // Add this immunity check
             if (Date.now() < invulnerableUntil) {
                 // Make player flash during immunity
@@ -549,62 +571,62 @@ export default function FishFrenzy({ height = "h-96" }: FishFrenzyProps) {
             } else {
                 playerFish.visible = true; // Ensure player is visible after immunity
             }
-        
+
             // Calculate player's collision radius more efficiently
             const playerRadius = currentPlayerSize * 0.2 * COLLISION_MULTIPLIERS["Player"];
             const playerPos = playerFish.position.clone();
-            
+
             // Only check for collisions within a reasonable distance
             const maxCheckDistance = 10 + currentPlayerSize * 2;
-            
+
             // Optional debug visualization
             // debugVisualizeSphere(playerPos, playerRadius, 0x00ff00);
-        
+
             // Loop over the fish list (backwards so removal is safe)
             for (let i = fishList.length - 1; i >= 0; i--) {
                 const fish = fishList[i].object;
                 const fishPos = fish.position.clone();
-                
+
                 // Quick distance check before doing full calculations
                 const quickDistance = playerPos.distanceTo(fishPos);
                 if (quickDistance > maxCheckDistance) {
                     continue; // Skip distant fish for performance
                 }
-                
+
                 const fishData = fishList[i];
                 const fishType = fishData.type;
-        
+
                 // Calculate fish's collision radius for collision detection ONLY
                 const fishRadius = fishData.exactSize * 0.2 * (COLLISION_MULTIPLIERS[fishType] || 0.8);
-        
+
                 // Optional debug visualization
                 // debugVisualizeSphere(fishPos, fishRadius, 0xff0000);
-        
+
                 const distance = quickDistance; // We already calculated this
                 const collisionThreshold = playerRadius + fishRadius;
-        
+
                 if (distance < collisionThreshold) {
                     // Reduce log spam in production
                     if (process.env.NODE_ENV !== 'production') {
                         console.log(`Collision detected! Player size: ${currentPlayerSize}, Fish size: ${fishData.exactSize}`);
                     }
-                    
+
                     // Use direct size comparison for who-eats-whom logic
                     if (currentPlayerSize > fishData.exactSize * 1.1) {
                         // Player eats fish (player is at least 10% larger)
                         scene.remove(fish);
                         fishList.splice(i, 1);
-                        
+
                         // Rest of eating code remains the same...
                         const sizeBonus = fishData.exactSize > currentPlayerSize * 0.8 ? 2 : 1;
                         playerScore += Math.round((fishData.exactSize * 10) * sizeBonus);
                         setScore(playerScore);
-                        
+
                         createEatingEffect(fishPos, fishData.exactSize > currentPlayerSize * 0.8 ? 0x800080 : 0x32cd32);
-                        
+
                         const growthAmount = 0.05 + (fishData.exactSize / currentPlayerSize) * 0.05;
                         growPlayer(growthAmount);
-                        
+
                         if (fishList.length < 30) { // Reduced from 40 for better performance
                             spawnFish(3);
                         }
@@ -614,12 +636,12 @@ export default function FishFrenzy({ height = "h-96" }: FishFrenzyProps) {
                         endGame();
                     } else {
                         // Sizes are within 10% of each other - just bump
-                        
+
                         // Optional: Add a slight repulsion effect
                         const repulsionForce = 0.2;
                         const repulsionDirection = playerPos.clone().sub(fishPos).normalize();
                         playerFish.position.add(repulsionDirection.multiplyScalar(repulsionForce));
-                        
+
                         // Also push the other fish away slightly
                         fish.position.add(repulsionDirection.clone().negate().multiplyScalar(repulsionForce * 0.5));
                     }
@@ -743,7 +765,7 @@ export default function FishFrenzy({ height = "h-96" }: FishFrenzyProps) {
 
             // -------------------- FORWARD MOTION (always moving) ----------------
             // Optionally, you can let the user "sprint" by holding Shift
-            const isSprinting = keysPressed.current['Shift'];
+            const isSprinting = keysPressed.current['shift'];
             const currentForwardSpeed = isSprinting ? playerSpeed * 1.3 : playerSpeed;
 
             // Calculate a forward direction vector from the fish’s current quaternion
@@ -942,21 +964,143 @@ export default function FishFrenzy({ height = "h-96" }: FishFrenzyProps) {
         };
     }, [gameStarted]);
 
+    // Joystick controls for mobile
+    useEffect(() => {
+        if (!gameRef.current || !gameStarted) return;
+
+        function handleJoystickStart(e: TouchEvent) {
+            if (!joystickRef.current) return;
+            setJoystickActive(true);
+
+            const touch = e.touches[0];
+            const joystickRect = joystickRef.current.getBoundingClientRect();
+
+            // Set the base position where the joystick was first touched
+            setJoystickBasePosition({
+                x: touch.clientX,
+                y: touch.clientY
+            });
+
+            // Initially the knob is at the same position
+            setJoystickPosition({ x: 0, y: 0 });
+
+            e.preventDefault();
+        }
+
+        function handleJoystickMove(e: TouchEvent) {
+            if (!joystickActive || !joystickRef.current) return;
+
+            const touch = e.touches[0];
+
+            // Calculate the joystick offset from the base position
+            const deltaX = touch.clientX - joystickBasePosition.x;
+            const deltaY = touch.clientY - joystickBasePosition.y;
+
+            // Limit the joystick movement radius
+            const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+            const maxRadius = 50;
+            const limitedDistance = Math.min(distance, maxRadius);
+
+            // Calculate the normalized position (-1 to 1 range)
+            const angle = Math.atan2(deltaY, deltaX);
+            const normalizedX = Math.cos(angle) * limitedDistance / maxRadius;
+            const normalizedY = Math.sin(angle) * limitedDistance / maxRadius;
+
+            // Update the visual position
+            setJoystickPosition({
+                x: Math.cos(angle) * limitedDistance,
+                y: Math.sin(angle) * limitedDistance
+            });
+
+            // Map joystick position to key presses
+            // Clear previous movement keys
+            keysPressed.current['w'] = false;
+            keysPressed.current['a'] = false;
+            keysPressed.current['s'] = false;
+            keysPressed.current['d'] = false;
+
+            // Setting a small deadzone
+            const deadzone = 0.2;
+
+            // Horizontal control (left/right)
+            if (normalizedX > deadzone) keysPressed.current['d'] = true;
+            if (normalizedX < -deadzone) keysPressed.current['a'] = true;
+
+            // Vertical control (up/down)
+            if (normalizedY < -deadzone) keysPressed.current['w'] = true;
+            if (normalizedY > deadzone) keysPressed.current['s'] = true;
+
+            // Sprint if the joystick is pushed far
+            keysPressed.current['shift'] = distance > (maxRadius * 0.8);
+
+            e.preventDefault();
+        }
+
+        function handleJoystickEnd() {
+            setJoystickActive(false);
+            setJoystickPosition({ x: 0, y: 0 });
+
+            // Reset all movement keys
+            keysPressed.current['w'] = false;
+            keysPressed.current['a'] = false;
+            keysPressed.current['s'] = false;
+            keysPressed.current['d'] = false;
+            keysPressed.current['shift'] = false;
+        }
+
+        // Add touch event listeners to the joystick
+        if (joystickRef.current) {
+            joystickRef.current.addEventListener('touchstart', handleJoystickStart);
+            window.addEventListener('touchmove', handleJoystickMove, { passive: false });
+            window.addEventListener('touchend', handleJoystickEnd);
+            window.addEventListener('touchcancel', handleJoystickEnd);
+        }
+
+        return () => {
+            if (joystickRef.current) {
+                joystickRef.current.removeEventListener('touchstart', handleJoystickStart);
+            }
+            window.removeEventListener('touchmove', handleJoystickMove);
+            window.removeEventListener('touchend', handleJoystickEnd);
+            window.removeEventListener('touchcancel', handleJoystickEnd);
+        };
+    }, [gameStarted, joystickActive, joystickBasePosition]);
+
     useEffect(() => {
         if (!gameRef.current || !gameStarted) return;
 
         const handleKeyDown = (e: KeyboardEvent) => {
-            keysPressed.current[e.key] = true;
+            // Convert key to lowercase to handle CapsLock
+            const key = e.key.toLowerCase();
+            keysPressed.current[key] = true;
+
+            // Add alias for Shift key and arrow keys
             if (e.key === 'Shift') {
-                keysPressed.current['Shift'] = true;
+                keysPressed.current['shift'] = true;
             }
+
+            // Also handle arrow keys with standard names
+            if (e.key === 'ArrowUp') keysPressed.current['w'] = true;
+            if (e.key === 'ArrowDown') keysPressed.current['s'] = true;
+            if (e.key === 'ArrowLeft') keysPressed.current['a'] = true;
+            if (e.key === 'ArrowRight') keysPressed.current['d'] = true;
         };
 
         const handleKeyUp = (e: KeyboardEvent) => {
-            keysPressed.current[e.key] = false;
+            // Convert key to lowercase to handle CapsLock
+            const key = e.key.toLowerCase();
+            keysPressed.current[key] = false;
+
+            // Add alias for Shift key and arrow keys
             if (e.key === 'Shift') {
-                keysPressed.current['Shift'] = false;
+                keysPressed.current['shift'] = false;
             }
+
+            // Also handle arrow keys
+            if (e.key === 'ArrowUp') keysPressed.current['w'] = false;
+            if (e.key === 'ArrowDown') keysPressed.current['s'] = false;
+            if (e.key === 'ArrowLeft') keysPressed.current['a'] = false;
+            if (e.key === 'ArrowRight') keysPressed.current['d'] = false;
         };
 
         window.addEventListener('keydown', handleKeyDown);
@@ -968,11 +1112,17 @@ export default function FishFrenzy({ height = "h-96" }: FishFrenzyProps) {
         };
     }, [gameStarted]);
 
+    useEffect(() => {
+        isTouchDevice.current = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    }, []);
+
     const resetGame = () => {
         setScore(0);
         setGameOver(false);
-        setPlayerSize(2.5); // Match the initial size from the main component
+        setPlayerSize(2.5);
         setGameStarted(false);
+        setJoystickActive(false);
+        setJoystickPosition({ x: 0, y: 0 });
 
         setTimeout(() => {
             setGameStarted(true);
@@ -994,7 +1144,7 @@ export default function FishFrenzy({ height = "h-96" }: FishFrenzyProps) {
                         </div>
                     </div>
                 )}
-    
+
                 {gameStarted && !gameOver && !loading && (
                     <>
                         {/* Score and game info - stays visible in fullscreen */}
@@ -1004,7 +1154,7 @@ export default function FishFrenzy({ height = "h-96" }: FishFrenzyProps) {
                             <div className="text-xs mt-1 text-green-400">Green fish are edible</div>
                             <div className="text-xs text-red-400">Red fish are dangerous</div>
                         </div>
-    
+
                         {/* Fullscreen toggle button */}
                         <button
                             onClick={toggleFullscreen}
@@ -1024,7 +1174,7 @@ export default function FishFrenzy({ height = "h-96" }: FishFrenzyProps) {
                         </button>
                     </>
                 )}
-    
+
                 {gameOver && (
                     <div
                         className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center z-50"
@@ -1039,7 +1189,7 @@ export default function FishFrenzy({ height = "h-96" }: FishFrenzyProps) {
                         >
                             Play Again
                         </button>
-    
+
                         {isFullscreen && (
                             <button
                                 onClick={toggleFullscreen}
@@ -1053,7 +1203,7 @@ export default function FishFrenzy({ height = "h-96" }: FishFrenzyProps) {
                         )}
                     </div>
                 )}
-    
+
                 {!gameStarted && (
                     <div
                         className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center text-center z-50"
@@ -1072,8 +1222,39 @@ export default function FishFrenzy({ height = "h-96" }: FishFrenzyProps) {
                         </button>
                     </div>
                 )}
+                {/* Touch */}
+                {isTouchDevice.current && gameStarted && !gameOver && !loading && (
+                    <div className="absolute bottom-8 left-12 z-50 touch-none">
+                        <div
+                            ref={joystickRef}
+                            className="w-24 h-24 rounded-full bg-black/30 border-2 border-white/20 relative touch-none"
+                            style={{
+                                touchAction: 'none',
+                                userSelect: 'none'
+                            }}
+                        >
+                            <div
+                                className="w-14 h-14 rounded-full bg-blue-500/70 absolute transform -translate-x-1/2 -translate-y-1/2 touch-none"
+                                style={{
+                                    left: `calc(50% + ${joystickPosition.x * 0.75}px)`,
+                                    top: `calc(50% + ${joystickPosition.y * 0.75}px)`,
+                                    boxShadow: '0 0 10px rgba(0,0,0,0.5)'
+                                }}
+                            />
+                        </div>
+
+                        {/* Sprint indicator */}
+                        <div
+                            className={`absolute -right-12 bottom-0 w-10 h-10 rounded-full flex items-center justify-center transition-all duration-200 ${keysPressed.current['shift'] ? 'bg-blue-500 text-white' : 'bg-black/30 text-gray-300'}`}
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                            </svg>
+                        </div>
+                    </div>
+                )}
             </div>
-    
+
             {!isFullscreen && (
                 <div className="mt-4 text-sm text-gray-600">
                     <p className="font-medium">Controls:</p>
