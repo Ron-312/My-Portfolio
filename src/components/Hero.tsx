@@ -164,18 +164,17 @@ export default function Hero() {
 
                     <div className="md:block md:w-1/3">
                         <motion.div
-                            className="relative w-80 h-80 mx-auto group"
+                            className="relative w-64 h-64 md:w-80 md:h-80 mx-auto group mt-8 md:mt-0"
                             initial={{ opacity: 0, scale: 0.8 }}
                             animate={{ opacity: 1, scale: 1 }}
                             transition={{ duration: 0.5, delay: 0.4 }}
                             whileHover={{ rotate: [0, 2, 0] }}
                         >
                             {/* Decorative elements */}
-                            <div className="absolute -top-4 -right-4 w-20 h-20 bg-blue-500/20 rounded-full group-hover:scale-110 transition-transform duration-300"></div>
-                            <div className="absolute -bottom-4 -left-4 w-16 h-16 bg-purple-500/20 rounded-full group-hover:scale-110 transition-transform duration-300"></div>
+                            <div className="absolute -top-3 -right-3 md:-top-4 md:-right-4 w-16 h-16 md:w-20 md:h-20 bg-blue-500/20 rounded-full group-hover:scale-110 transition-transform duration-300"></div>
+                            <div className="absolute -bottom-3 -left-3 md:-bottom-4 md:-left-4 w-12 h-12 md:w-16 md:h-16 bg-purple-500/20 rounded-full group-hover:scale-110 transition-transform duration-300"></div>
 
                             {/* Image frame */}
-                            {/* First background layer - gradient with blur */}
                             <div className="absolute inset-0 bg-gradient-to-tr from-blue-500 to-purple-500 rounded-xl opacity-70 rotate-3 group-hover:opacity-80 transition-all duration-300 blur-[3px] overflow-hidden">
                                 <Image
                                     src="/images/ron-profile.jpg"
@@ -183,10 +182,6 @@ export default function Hero() {
                                     width={320}
                                     height={320}
                                     className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105 filter brightness-110"
-                                    onError={() => {
-                                        console.error("Image failed to load");
-                                        // Fallback handled by Next.js
-                                    }}
                                 />
                             </div>
 
