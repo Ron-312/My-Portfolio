@@ -5,6 +5,16 @@ import * as THREE from 'three';
 import { motion } from 'framer-motion';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
 
+// Add these constants at the top of your component
+const COLLISION_MULTIPLIERS: { [key: string]: number } = {
+    "Squid": 0.8,
+    "Black Moor Goldfish": 0.9,
+    "Hammerhead Shark": 1.2,
+    "Rainbow Trout": 1.0,
+    "Goblin Shark": 1.3,
+    "Player": 0.8 // Player-specific multiplier
+};
+
 interface FishFrenzyProps {
     height?: string;
 }
@@ -70,6 +80,9 @@ export default function FishFrenzy({ height = "h-96" }: FishFrenzyProps) {
     const [loading, setLoading] = useState(false);
     const [isFullscreen, setIsFullscreen] = useState(false);
 
+    // Add a brief invulnerability period after game start
+    // let invulnerableUntil = Date.now() + 3000; // 3 seconds of immunity
+
     // Add this function to handle fullscreen toggle
     const toggleFullscreen = () => {
         const gameElement = gameRef.current as FullscreenElement | null;
@@ -124,6 +137,8 @@ export default function FishFrenzy({ height = "h-96" }: FishFrenzyProps) {
 
     useEffect(() => {
         if (!gameRef.current || !gameStarted) return;
+
+        let invulnerableUntil = Date.now() + 3000; // 3 seconds of immunity
 
         setLoading(true);
         const currentRef = gameRef.current;
@@ -359,7 +374,7 @@ export default function FishFrenzy({ height = "h-96" }: FishFrenzyProps) {
                 let y: number = 0;
                 let z: number = 0;
                 let tooCloseToPlayer = true;
-                const minDistanceFromPlayer = 10; // Minimum spawn distance from player
+                const minDistanceFromPlayer = fishList.length === 0 ? 20 : 10; // Increased for initial spawn
 
                 // Keep generating positions until we find one far enough from player
                 while (tooCloseToPlayer) {
@@ -438,10 +453,13 @@ export default function FishFrenzy({ height = "h-96" }: FishFrenzyProps) {
             });
         }
 
-        // Add this function to control fish population balance
+        // Adjust the spawnFish function to spawn fewer dangerous fish at start
         function spawnFish(count = 10) {
-            // Calculate how many edible vs dangerous fish to spawn based on player size
-            const edibleFishCount = Math.ceil(count * 0.7); // At least 70% should be edible
+            // For initial spawn, make mostly safe fish
+            const isInitialSpawn = fishList.length === 0;
+
+            // Change the ratio of edible vs dangerous fish
+            const edibleFishCount = isInitialSpawn ? Math.ceil(count * 0.9) : Math.ceil(count * 0.7);
             const dangerousFishCount = count - edibleFishCount;
 
             // Spawn fish that are smaller than player (edible)
@@ -501,60 +519,93 @@ export default function FishFrenzy({ height = "h-96" }: FishFrenzyProps) {
             }
         }
 
+        // When player grows, update its collision radius immediately
+        function growPlayer(growthAmount: number) {
+            currentPlayerSize += growthAmount;
+            setPlayerSize(currentPlayerSize);
+
+            // Update visual scale
+            const newScaleFactor = currentPlayerSize * 0.2;
+            playerFish.scale.set(newScaleFactor, newScaleFactor, newScaleFactor);
+
+            // No need to explicitly update collision radius as it's calculated dynamically in checkCollision
+            console.log(`Player grew to size ${currentPlayerSize} with collision radius ${currentPlayerSize * COLLISION_MULTIPLIERS["Player"]}`);
+        }
+
         function checkCollision() {
             if (!playerFish) return;
-
-            // Use player's exact size for collision
-            const playerRadius = currentPlayerSize * 1;
+        
+            // Add this immunity check
+            if (Date.now() < invulnerableUntil) {
+                // Make player flash during immunity
+                playerFish.visible = Math.floor(Date.now() / 100) % 2 === 0;
+                return; // Skip collision detection during immunity
+            } else {
+                playerFish.visible = true; // Ensure player is visible after immunity
+            }
+        
+            // Still calculate collision radius for detecting collisions
+            const basePlayerRadius = currentPlayerSize * 0.2;
+            const playerRadius = basePlayerRadius * COLLISION_MULTIPLIERS["Player"];
             const playerPos = playerFish.position.clone();
-
+        
+            // Optional debug visualization
+            // debugVisualizeSphere(playerPos, playerRadius, 0x00ff00);
+        
             // Loop over the fish list (backwards so removal is safe)
             for (let i = fishList.length - 1; i >= 0; i--) {
                 const fish = fishList[i].object;
                 const fishPos = fish.position.clone();
                 const fishData = fishList[i];
-
-                // Use the fish's exact size for collision
-                const fishRadius = fishData.exactSize * 1;
-
+                const fishType = fishData.type;
+        
+                // Calculate fish's collision radius for collision detection ONLY
+                const fishMultiplier = COLLISION_MULTIPLIERS[fishType] || 0.8;
+                const fishRadius = fishData.exactSize * fishMultiplier;
+        
+                // Optional debug visualization
+                // debugVisualizeSphere(fishPos, fishRadius, 0xff0000);
+        
                 const distance = playerPos.distanceTo(fishPos);
                 const collisionThreshold = playerRadius + fishRadius;
-
+        
                 if (distance < collisionThreshold) {
                     console.log(`Collision detected! Player size: ${currentPlayerSize}, Fish size: ${fishData.exactSize}`);
-
-                    // If the player's size is at least 10% larger than the fish, it can eat the fish.
-                    if (currentPlayerSize > fishData.exactSize * 0.9) {
-                        // Remove the eaten fish
+                    
+                    // *** KEY CHANGE: Use direct size comparison instead of radius ***
+                    
+                    if (currentPlayerSize > fishData.exactSize * 1.1) {
+                        // Player eats fish (player is at least 10% larger)
+                        console.log("Player eats fish!");
                         scene.remove(fish);
                         fishList.splice(i, 1);
-
-                        // Update the score based on the fish's size and a bonus factor
-                        const sizeBonus = fishData.exactSize > currentPlayerSize ? 2 : 1;
+                        
+                        // Rest of eating code remains the same...
+                        const sizeBonus = fishData.exactSize > currentPlayerSize * 0.8 ? 2 : 1;
                         playerScore += Math.round((fishData.exactSize * 10) * sizeBonus);
                         setScore(playerScore);
-
-                        // Show a visual effect for eating
+                        
                         createEatingEffect(fishPos, fishData.exactSize > currentPlayerSize * 0.8 ? 0x800080 : 0x32cd32);
-
-                        // Calculate the growth amount based on the relative size difference
+                        
                         const growthAmount = 0.05 + (fishData.exactSize / currentPlayerSize) * 0.05;
-                        currentPlayerSize += growthAmount;
-                        setPlayerSize(currentPlayerSize);
-
-                        // Update the player's scale in place without removing and recreating the fish.
-                        // (Assuming your createPlayerFish function used: scaleFactor = size * 0.05)
-                        const newScaleFactor = currentPlayerSize * 0.2;
-                        playerFish.scale.set(newScaleFactor, newScaleFactor, newScaleFactor);
-
-                        // Optionally, spawn more fish if needed
+                        growPlayer(growthAmount);
+                        
                         if (fishList.length < 40) {
                             spawnFish(3);
                         }
-                    } else if (fishData.exactSize > currentPlayerSize * 1.2) {
-                        // If the fish is significantly larger (20% bigger), it can eat the player.
+                    } else if (fishData.exactSize > currentPlayerSize * 1.1) {
+                        // Fish eats player (fish is at least 10% larger)
+                        console.log("Fish eats player!");
                         createEatingEffect(playerPos, 0xff6347);
                         endGame();
+                    } else {
+                        // Sizes are within 10% of each other - just bump
+                        console.log("Just a bump - sizes too similar");
+                        
+                        // Optional: Add a slight repulsion effect
+                        const repulsionForce = 0.2;
+                        const repulsionDirection = playerPos.clone().sub(fishPos).normalize();
+                        playerFish.position.add(repulsionDirection.multiplyScalar(repulsionForce));
                     }
                 }
             }
@@ -916,41 +967,40 @@ export default function FishFrenzy({ height = "h-96" }: FishFrenzyProps) {
         <div className="relative w-full">
             <div
                 ref={gameRef}
-                className={`w-full ${height} bg-blue-900 rounded-lg overflow-hidden`}
-            ></div>
-
-            <div className="absolute top-0 left-0 w-full h-full pointer-events-none">
+                className={`w-full ${height} bg-blue-900 rounded-lg overflow-hidden relative`}
+            >
+                {/* 👇 Move all UI elements INSIDE the gameRef div! */}
                 {loading && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/30 z-50" style={{ pointerEvents: 'auto' }}>
                         <div className="bg-white rounded-lg p-4 flex flex-col items-center">
                             <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-2"></div>
                             <p className="text-sm text-gray-700">Loading fish model...</p>
                         </div>
                     </div>
                 )}
-
+    
                 {gameStarted && !gameOver && !loading && (
                     <>
-                        <div className="absolute top-4 left-4 bg-black/50 text-white px-3 py-1 rounded-lg">
+                        {/* Score and game info - stays visible in fullscreen */}
+                        <div className="absolute top-4 left-4 bg-black/50 text-white px-3 py-1 rounded-lg z-50" style={{ pointerEvents: 'none' }}>
                             <div className="text-sm">Score: {score}</div>
                             <div className="text-xs">Size: {playerSize.toFixed(1)}</div>
                             <div className="text-xs mt-1 text-green-400">Green fish are edible</div>
                             <div className="text-xs text-red-400">Red fish are dangerous</div>
                         </div>
-
+    
                         {/* Fullscreen toggle button */}
                         <button
                             onClick={toggleFullscreen}
-                            className="absolute top-4 right-4 bg-black/50 text-white p-2 rounded-lg hover:bg-black/70 transition-colors pointer-events-auto"
+                            className="absolute top-4 right-4 bg-black/50 text-white p-2 rounded-lg hover:bg-black/70 transition-colors z-50"
+                            style={{ pointerEvents: 'auto' }}
                             aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
                         >
                             {isFullscreen ? (
-                                // Exit fullscreen icon (minimize)
                                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                     <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"></path>
                                 </svg>
                             ) : (
-                                // Enter fullscreen icon (expand)
                                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                     <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"></path>
                                 </svg>
@@ -958,12 +1008,11 @@ export default function FishFrenzy({ height = "h-96" }: FishFrenzyProps) {
                         </button>
                     </>
                 )}
-
+    
                 {gameOver && (
-                    <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center pointer-events-auto"
+                    <div
+                        className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center z-50"
+                        style={{ pointerEvents: 'auto' }}
                     >
                         <h2 className="text-3xl font-bold text-red-500 mb-2">Game Over</h2>
                         <p className="text-white mb-1">Your Score: {score}</p>
@@ -974,14 +1023,25 @@ export default function FishFrenzy({ height = "h-96" }: FishFrenzyProps) {
                         >
                             Play Again
                         </button>
-                    </motion.div>
+    
+                        {isFullscreen && (
+                            <button
+                                onClick={toggleFullscreen}
+                                className="mt-2 bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg flex items-center"
+                            >
+                                <svg className="mr-2" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"></path>
+                                </svg>
+                                Exit Fullscreen
+                            </button>
+                        )}
+                    </div>
                 )}
-
+    
                 {!gameStarted && (
-                    <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center pointer-events-auto text-center"
+                    <div
+                        className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center text-center z-50"
+                        style={{ pointerEvents: 'auto' }}
                     >
                         <h2 className="text-3xl font-bold text-blue-400 mb-2">Fish Frenzy</h2>
                         <p className="text-white max-w-md mb-4 px-4">
@@ -994,14 +1054,16 @@ export default function FishFrenzy({ height = "h-96" }: FishFrenzyProps) {
                         >
                             Start Game
                         </button>
-                    </motion.div>
+                    </div>
                 )}
             </div>
-
-            <div className="mt-4 text-sm text-gray-600">
-                <p className="font-medium">Controls:</p>
-                <p>Arrow Keys or WASD to move. Hold Shift to swim faster! Eat smaller fish, avoid bigger ones!</p>
-            </div>
+    
+            {!isFullscreen && (
+                <div className="mt-4 text-sm text-gray-600">
+                    <p className="font-medium">Controls:</p>
+                    <p>Arrow Keys or WASD to move. Hold Shift to swim faster! Eat smaller fish, avoid bigger ones!</p>
+                </div>
+            )}
         </div>
     );
 }
