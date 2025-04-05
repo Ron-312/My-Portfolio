@@ -185,7 +185,7 @@ export default function FishFrenzy({ height = "h-96" }: FishFrenzyProps) {
         frontLight.position.set(0, 0, 10);
         scene.add(frontLight);
 
-        const particleCount = 2000;
+        const particleCount = 1000;
         const particleGeometry = new THREE.BufferGeometry();
         const particlePositions = new Float32Array(particleCount * 3);
 
@@ -223,7 +223,7 @@ export default function FishFrenzy({ height = "h-96" }: FishFrenzyProps) {
         // Add underwater plants/coral for the larger environment
         function addUnderwaterEnvironment() {
             // Create some coral/plants on the ocean floor
-            for (let i = 0; i < 40; i++) {
+            for (let i = 0; i < 30; i++) {
                 const coral = new THREE.Group();
 
                 // Create coral base
@@ -532,9 +532,15 @@ export default function FishFrenzy({ height = "h-96" }: FishFrenzyProps) {
             console.log(`Player grew to size ${currentPlayerSize} with collision radius ${currentPlayerSize * COLLISION_MULTIPLIERS["Player"]}`);
         }
 
+        let frameCount = 0; // Frame counter for collision checks
+
         function checkCollision() {
             if (!playerFish) return;
-        
+            
+            // Increment frame counter and only check collisions every other frame
+            frameCount++;
+            if (frameCount % 2 !== 0) return;
+            
             // Add this immunity check
             if (Date.now() < invulnerableUntil) {
                 // Make player flash during immunity
@@ -544,11 +550,13 @@ export default function FishFrenzy({ height = "h-96" }: FishFrenzyProps) {
                 playerFish.visible = true; // Ensure player is visible after immunity
             }
         
-            // Still calculate collision radius for detecting collisions
-            const basePlayerRadius = currentPlayerSize * 0.2;
-            const playerRadius = basePlayerRadius * COLLISION_MULTIPLIERS["Player"];
+            // Calculate player's collision radius more efficiently
+            const playerRadius = currentPlayerSize * 0.2 * COLLISION_MULTIPLIERS["Player"];
             const playerPos = playerFish.position.clone();
-        
+            
+            // Only check for collisions within a reasonable distance
+            const maxCheckDistance = 10 + currentPlayerSize * 2;
+            
             // Optional debug visualization
             // debugVisualizeSphere(playerPos, playerRadius, 0x00ff00);
         
@@ -556,27 +564,34 @@ export default function FishFrenzy({ height = "h-96" }: FishFrenzyProps) {
             for (let i = fishList.length - 1; i >= 0; i--) {
                 const fish = fishList[i].object;
                 const fishPos = fish.position.clone();
+                
+                // Quick distance check before doing full calculations
+                const quickDistance = playerPos.distanceTo(fishPos);
+                if (quickDistance > maxCheckDistance) {
+                    continue; // Skip distant fish for performance
+                }
+                
                 const fishData = fishList[i];
                 const fishType = fishData.type;
         
                 // Calculate fish's collision radius for collision detection ONLY
-                const fishMultiplier = COLLISION_MULTIPLIERS[fishType] || 0.8;
-                const fishRadius = fishData.exactSize * fishMultiplier;
+                const fishRadius = fishData.exactSize * 0.2 * (COLLISION_MULTIPLIERS[fishType] || 0.8);
         
                 // Optional debug visualization
                 // debugVisualizeSphere(fishPos, fishRadius, 0xff0000);
         
-                const distance = playerPos.distanceTo(fishPos);
+                const distance = quickDistance; // We already calculated this
                 const collisionThreshold = playerRadius + fishRadius;
         
                 if (distance < collisionThreshold) {
-                    console.log(`Collision detected! Player size: ${currentPlayerSize}, Fish size: ${fishData.exactSize}`);
+                    // Reduce log spam in production
+                    if (process.env.NODE_ENV !== 'production') {
+                        console.log(`Collision detected! Player size: ${currentPlayerSize}, Fish size: ${fishData.exactSize}`);
+                    }
                     
-                    // *** KEY CHANGE: Use direct size comparison instead of radius ***
-                    
+                    // Use direct size comparison for who-eats-whom logic
                     if (currentPlayerSize > fishData.exactSize * 1.1) {
                         // Player eats fish (player is at least 10% larger)
-                        console.log("Player eats fish!");
                         scene.remove(fish);
                         fishList.splice(i, 1);
                         
@@ -590,22 +605,23 @@ export default function FishFrenzy({ height = "h-96" }: FishFrenzyProps) {
                         const growthAmount = 0.05 + (fishData.exactSize / currentPlayerSize) * 0.05;
                         growPlayer(growthAmount);
                         
-                        if (fishList.length < 40) {
+                        if (fishList.length < 30) { // Reduced from 40 for better performance
                             spawnFish(3);
                         }
                     } else if (fishData.exactSize > currentPlayerSize * 1.1) {
                         // Fish eats player (fish is at least 10% larger)
-                        console.log("Fish eats player!");
                         createEatingEffect(playerPos, 0xff6347);
                         endGame();
                     } else {
                         // Sizes are within 10% of each other - just bump
-                        console.log("Just a bump - sizes too similar");
                         
                         // Optional: Add a slight repulsion effect
                         const repulsionForce = 0.2;
                         const repulsionDirection = playerPos.clone().sub(fishPos).normalize();
                         playerFish.position.add(repulsionDirection.multiplyScalar(repulsionForce));
+                        
+                        // Also push the other fish away slightly
+                        fish.position.add(repulsionDirection.clone().negate().multiplyScalar(repulsionForce * 0.5));
                     }
                 }
             }
