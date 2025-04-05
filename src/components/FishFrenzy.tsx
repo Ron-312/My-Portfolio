@@ -88,21 +88,26 @@ export default function FishFrenzy({ height = "h-96" }: FishFrenzyProps) {
     const isTouchDevice = useRef(false);
 
     useEffect(() => {
+        // Define interface for MS-specific Navigator properties
+        interface MSNavigator extends Navigator {
+            msMaxTouchPoints?: number;
+        }
+        
         const checkTouch = () => {
             const isTouchCapable = (
                 'ontouchstart' in window ||
                 navigator.maxTouchPoints > 0 ||
-                (navigator as any).msMaxTouchPoints > 0
+                ((navigator as MSNavigator).msMaxTouchPoints || 0) > 0
             );
             console.log("Is touch device detected:", isTouchCapable);
             isTouchDevice.current = isTouchCapable;
         };
-
+    
         checkTouch();
         window.addEventListener('touchstart', () => {
             isTouchDevice.current = true;
         }, { once: true });
-
+    
     }, []);
 
     // Add this function to handle fullscreen toggle
@@ -973,7 +978,7 @@ export default function FishFrenzy({ height = "h-96" }: FishFrenzyProps) {
             setJoystickActive(true);
 
             const touch = e.touches[0];
-            const joystickRect = joystickRef.current.getBoundingClientRect();
+            // const joystickRect = joystickRef.current.getBoundingClientRect();
 
             // Set the base position where the joystick was first touched
             setJoystickBasePosition({
