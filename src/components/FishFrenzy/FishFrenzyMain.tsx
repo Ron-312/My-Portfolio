@@ -5,6 +5,8 @@ import * as THREE from 'three';
 // import { motion } from 'framer-motion';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
 
+import JoystickControl from './JoystickControl';
+
 // Add these constants at the top of your component
 const COLLISION_MULTIPLIERS: { [key: string]: number } = {
     "Squid": 0.8,
@@ -79,36 +81,6 @@ export default function FishFrenzy({ height = "h-96" }: FishFrenzyProps) {
     const keysPressed = useRef<Record<string, boolean>>({});
     const [loading, setLoading] = useState(false);
     const [isFullscreen, setIsFullscreen] = useState(false);
-
-    // Joystick controls
-    const [joystickActive, setJoystickActive] = useState(false);
-    const [joystickPosition, setJoystickPosition] = useState({ x: 0, y: 0 });
-    const [joystickBasePosition, setJoystickBasePosition] = useState({ x: 0, y: 0 });
-    const joystickRef = useRef<HTMLDivElement>(null);
-    const isTouchDevice = useRef(false);
-
-    useEffect(() => {
-        // Define interface for MS-specific Navigator properties
-        interface MSNavigator extends Navigator {
-            msMaxTouchPoints?: number;
-        }
-        
-        const checkTouch = () => {
-            const isTouchCapable = (
-                'ontouchstart' in window ||
-                navigator.maxTouchPoints > 0 ||
-                ((navigator as MSNavigator).msMaxTouchPoints || 0) > 0
-            );
-            console.log("Is touch device detected:", isTouchCapable);
-            isTouchDevice.current = isTouchCapable;
-        };
-    
-        checkTouch();
-        window.addEventListener('touchstart', () => {
-            isTouchDevice.current = true;
-        }, { once: true });
-    
-    }, []);
 
     // Add this function to handle fullscreen toggle
     const toggleFullscreen = () => {
@@ -916,160 +888,6 @@ export default function FishFrenzy({ height = "h-96" }: FishFrenzyProps) {
         };
     }, [gameStarted]);
 
-    useEffect(() => {
-        if (!gameRef.current || !gameStarted) return;
-
-        const currentRef = gameRef.current;
-
-        let touchStartX = 0;
-        let touchStartY = 0;
-
-        const handleTouchStart = (e: TouchEvent) => {
-            if (e.touches.length > 0) {
-                touchStartX = e.touches[0].clientX;
-                touchStartY = e.touches[0].clientY;
-            }
-        };
-
-        const handleTouchMove = (e: TouchEvent) => {
-            if (e.touches.length > 0) {
-                const touchX = e.touches[0].clientX;
-                const touchY = e.touches[0].clientY;
-
-                const deltaX = touchX - touchStartX;
-                const deltaY = touchY - touchStartY;
-
-                keysPressed.current['ArrowRight'] = deltaX > 10;
-                keysPressed.current['ArrowLeft'] = deltaX < -10;
-                keysPressed.current['ArrowUp'] = deltaY < -10;
-                keysPressed.current['ArrowDown'] = deltaY > 10;
-
-                if (Math.abs(deltaX) > 20 || Math.abs(deltaY) > 20) {
-                    touchStartX = touchX;
-                    touchStartY = touchY;
-                }
-            }
-        };
-
-        const handleTouchEnd = () => {
-            keysPressed.current['ArrowRight'] = false;
-            keysPressed.current['ArrowLeft'] = false;
-            keysPressed.current['ArrowUp'] = false;
-            keysPressed.current['ArrowDown'] = false;
-        };
-
-        currentRef.addEventListener('touchstart', handleTouchStart);
-        currentRef.addEventListener('touchmove', handleTouchMove);
-        currentRef.addEventListener('touchend', handleTouchEnd);
-
-        return () => {
-            currentRef.removeEventListener('touchstart', handleTouchStart);
-            currentRef.removeEventListener('touchmove', handleTouchMove);
-            currentRef.removeEventListener('touchend', handleTouchEnd);
-        };
-    }, [gameStarted]);
-
-    // Joystick controls for mobile
-    useEffect(() => {
-        if (!gameRef.current || !gameStarted) return;
-
-        function handleJoystickStart(e: TouchEvent) {
-            if (!joystickRef.current) return;
-            setJoystickActive(true);
-
-            const touch = e.touches[0];
-            // const joystickRect = joystickRef.current.getBoundingClientRect();
-
-            // Set the base position where the joystick was first touched
-            setJoystickBasePosition({
-                x: touch.clientX,
-                y: touch.clientY
-            });
-
-            // Initially the knob is at the same position
-            setJoystickPosition({ x: 0, y: 0 });
-
-            e.preventDefault();
-        }
-
-        function handleJoystickMove(e: TouchEvent) {
-            if (!joystickActive || !joystickRef.current) return;
-
-            const touch = e.touches[0];
-
-            // Calculate the joystick offset from the base position
-            const deltaX = touch.clientX - joystickBasePosition.x;
-            const deltaY = touch.clientY - joystickBasePosition.y;
-
-            // Limit the joystick movement radius
-            const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
-            const maxRadius = 50;
-            const limitedDistance = Math.min(distance, maxRadius);
-
-            // Calculate the normalized position (-1 to 1 range)
-            const angle = Math.atan2(deltaY, deltaX);
-            const normalizedX = Math.cos(angle) * limitedDistance / maxRadius;
-            const normalizedY = Math.sin(angle) * limitedDistance / maxRadius;
-
-            // Update the visual position
-            setJoystickPosition({
-                x: Math.cos(angle) * limitedDistance,
-                y: Math.sin(angle) * limitedDistance
-            });
-
-            // Map joystick position to key presses
-            // Clear previous movement keys
-            keysPressed.current['w'] = false;
-            keysPressed.current['a'] = false;
-            keysPressed.current['s'] = false;
-            keysPressed.current['d'] = false;
-
-            // Setting a small deadzone
-            const deadzone = 0.2;
-
-            // Horizontal control (left/right)
-            if (normalizedX > deadzone) keysPressed.current['d'] = true;
-            if (normalizedX < -deadzone) keysPressed.current['a'] = true;
-
-            // Vertical control (up/down)
-            if (normalizedY < -deadzone) keysPressed.current['w'] = true;
-            if (normalizedY > deadzone) keysPressed.current['s'] = true;
-
-            // Sprint if the joystick is pushed far
-            keysPressed.current['shift'] = distance > (maxRadius * 0.8);
-
-            e.preventDefault();
-        }
-
-        function handleJoystickEnd() {
-            setJoystickActive(false);
-            setJoystickPosition({ x: 0, y: 0 });
-
-            // Reset all movement keys
-            keysPressed.current['w'] = false;
-            keysPressed.current['a'] = false;
-            keysPressed.current['s'] = false;
-            keysPressed.current['d'] = false;
-            keysPressed.current['shift'] = false;
-        }
-
-        // Add touch event listeners to the joystick
-        if (joystickRef.current) {
-            joystickRef.current.addEventListener('touchstart', handleJoystickStart);
-            window.addEventListener('touchmove', handleJoystickMove, { passive: false });
-            window.addEventListener('touchend', handleJoystickEnd);
-            window.addEventListener('touchcancel', handleJoystickEnd);
-        }
-
-        return () => {
-            if (joystickRef.current) {
-                joystickRef.current.removeEventListener('touchstart', handleJoystickStart);
-            }
-            window.removeEventListener('touchmove', handleJoystickMove);
-            window.removeEventListener('touchend', handleJoystickEnd);
-            window.removeEventListener('touchcancel', handleJoystickEnd);
-        };
-    }, [gameStarted, joystickActive, joystickBasePosition]);
 
     useEffect(() => {
         if (!gameRef.current || !gameStarted) return;
@@ -1117,17 +935,12 @@ export default function FishFrenzy({ height = "h-96" }: FishFrenzyProps) {
         };
     }, [gameStarted]);
 
-    useEffect(() => {
-        isTouchDevice.current = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-    }, []);
 
     const resetGame = () => {
         setScore(0);
         setGameOver(false);
         setPlayerSize(2.5);
         setGameStarted(false);
-        setJoystickActive(false);
-        setJoystickPosition({ x: 0, y: 0 });
 
         setTimeout(() => {
             setGameStarted(true);
@@ -1228,36 +1041,12 @@ export default function FishFrenzy({ height = "h-96" }: FishFrenzyProps) {
                     </div>
                 )}
                 {/* Touch */}
-                {isTouchDevice.current && gameStarted && !gameOver && !loading && (
-                    <div className="absolute bottom-8 left-12 z-50 touch-none">
-                        <div
-                            ref={joystickRef}
-                            className="w-24 h-24 rounded-full bg-black/30 border-2 border-white/20 relative touch-none"
-                            style={{
-                                touchAction: 'none',
-                                userSelect: 'none'
-                            }}
-                        >
-                            <div
-                                className="w-14 h-14 rounded-full bg-blue-500/70 absolute transform -translate-x-1/2 -translate-y-1/2 touch-none"
-                                style={{
-                                    left: `calc(50% + ${joystickPosition.x * 0.75}px)`,
-                                    top: `calc(50% + ${joystickPosition.y * 0.75}px)`,
-                                    boxShadow: '0 0 10px rgba(0,0,0,0.5)'
-                                }}
-                            />
-                        </div>
-
-                        {/* Sprint indicator */}
-                        <div
-                            className={`absolute -right-12 bottom-0 w-10 h-10 rounded-full flex items-center justify-center transition-all duration-200 ${keysPressed.current['shift'] ? 'bg-blue-500 text-white' : 'bg-black/30 text-gray-300'}`}
-                        >
-                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                            </svg>
-                        </div>
-                    </div>
-                )}
+                <JoystickControl
+                    keysPressed={keysPressed}
+                    gameStarted={gameStarted}
+                    gameOver={gameOver}
+                    loading={loading}
+                />
             </div>
 
             {!isFullscreen && (

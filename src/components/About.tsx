@@ -3,7 +3,7 @@
 import { motion } from 'framer-motion';
 import { useMemo, useState } from 'react';
 import SkillsVisualization from './SkillsVisualization';
-import FishFrenzy from './FishFrenzy';
+import FishFrenzy from './FishFrenzy/FishFrenzyMain';
 
 export default function About() {
     // Use useMemo to memoize the skills array
