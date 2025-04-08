@@ -186,14 +186,14 @@ export default function JoystickControl({ keysPressed, gameStarted, gameOver, lo
         ref={joystickAreaRef}
         className="fixed bottom-0 left-0 w-1/2 h-1/3 z-[500] flex items-center justify-center"
       >
-        {/* Visible joystick */}
-        <div className="w-40 h-40 rounded-full bg-black/70 border-4 border-white/60 relative">
+        {/* Visible joystick - USE joystickActive HERE: */}
+        <div className={`w-40 h-40 rounded-full bg-black/70 border-4 ${joystickActive ? 'border-blue-400' : 'border-white/60'} relative`}>
           <div
-            className="w-24 h-24 rounded-full bg-blue-500 absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2"
+            className={`w-24 h-24 rounded-full ${joystickActive ? 'bg-blue-600' : 'bg-blue-500'} absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2`}
             style={{
               marginLeft: joystickPosition.x,
               marginTop: joystickPosition.y,
-              boxShadow: '0 0 15px rgba(0,0,0,0.8)'
+              boxShadow: `0 0 15px ${joystickActive ? 'rgba(66,153,225,0.8)' : 'rgba(0,0,0,0.8)'}`
             }}
           />
         </div>
