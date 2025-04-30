@@ -15,14 +15,23 @@ export default function Portfolio() {
             link: "https://github.com/Ron-312/deep-search-engine",
             color: "from-blue-500 to-indigo-600"
         },
+        // {
+        //     id: 2,
+        //     title: "Stock Prediction Models",
+        //     description: "Multiple supervised learning models for stock price movement classification with GPU acceleration, custom time series validation, and NLP-derived sentiment analysis.",
+        //     image: "/placeholder.jpg",
+        //     tags: ["Python", "Machine Learning", "cuML", "NLP", "GPU Acceleration"],
+        //     link: "#",
+        //     color: "from-teal-500 to-green-600"
+        // },
         {
             id: 2,
-            title: "Stock Prediction Models",
-            description: "Multiple supervised learning models for stock price movement classification with GPU acceleration, custom time series validation, and NLP-derived sentiment analysis.",
+            title: "StockBrain",
+            description: "Flask web application that performs semantic search to identify stock references in text. Creates vector databases from CSV files to enable efficient matching of companies mentioned in tweets and other content.",
             image: "/placeholder.jpg",
-            tags: ["Python", "Machine Learning", "cuML", "NLP", "GPU Acceleration"],
-            link: "#",
-            color: "from-teal-500 to-green-600"
+            tags: ["Flask", "Python", "Semantic Search", "Vector Database", "API Integration"],
+            link: "https://github.com/Ron-312/StockBrain",
+            color: "from-purple-500 to-pink-600"
         }
     ];
 
@@ -58,6 +67,14 @@ export default function Portfolio() {
                 return '🧠';
             case 'JSON Schema':
                 return '📋';
+            case 'Flask':
+                return '🌶️';
+            case 'Semantic Search':
+                return '🔍';
+            case 'Vector Database':
+                return '🔢';
+            case 'API Integration':
+                return '🔌';
             default:
                 return '🔧';
         }
