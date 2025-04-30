@@ -69,7 +69,7 @@ export default function About() {
                                     I&apos;m constantly exploring new technologies and finding ways to optimize real-world solutions.
                                 </p>
 
-                                <div className="mb-8">
+                                {/* <div className="mb-8">
                                     <h4 className="font-medium mb-4 flex items-center">
                                         <span className="bg-blue-100 text-blue-600 w-6 h-6 rounded-full flex items-center justify-center mr-2">
                                             <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
@@ -92,9 +92,9 @@ export default function About() {
                                             <p className="text-sm text-gray-700 mt-1">Developed software tools for live music performances using Max/MSP.</p>
                                         </div>
                                     </div>
-                                </div>
+                                </div> */}
 
-                                <div>
+                                {/* <div>
                                     <h4 className="font-medium mb-4 flex items-center">
                                         <span className="bg-blue-100 text-blue-600 w-6 h-6 rounded-full flex items-center justify-center mr-2">
                                             <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
@@ -107,7 +107,7 @@ export default function About() {
                                         <span className="px-3 py-1 bg-blue-50 text-blue-600 rounded-full text-sm border border-blue-100">Hebrew (Native)</span>
                                         <span className="px-3 py-1 bg-blue-50 text-blue-600 rounded-full text-sm border border-blue-100">English (Fluent)</span>
                                     </div>
-                                </div>
+                                </div> */}
                             </div>
                         </div>
                         {/* Game Section - New Card */}

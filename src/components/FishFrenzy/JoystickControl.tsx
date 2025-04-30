@@ -26,7 +26,7 @@ export default function JoystickControl({ keysPressed, gameStarted, gameOver, lo
     const ua = navigator.userAgent.toLowerCase();
     const isMobile = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini|mobile/i.test(ua);
     console.log("Mobile device detection:", isMobile, ua);
-    setIsMobileDevice(isMobile || window.location.href.includes('localhost')); // Include localhost for testing
+    setIsMobileDevice(isMobile); 
   }, []);
   
   // SINGLE event handling effect - no other touch effects
