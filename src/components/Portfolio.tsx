@@ -8,11 +8,11 @@ export default function Portfolio() {
     const projects = [
         {
             id: 1,
-            title: "Browsing Agent with LLM Integration",
-            description: "AI-powered browsing agent that autonomously navigates and interacts with web pages, with improvements to open-source LLM-driven web exploration.",
+            title: "Deep Search Engine",
+            description: "AI-powered search solution that leverages LLMs to provide detailed, well-cited answers by synthesizing information from multiple sources with multi-iteration intelligence and source attribution.",
             image: "/placeholder.jpg",
-            tags: ["Python", "JavaScript", "LLMs", "Web Scraping", "Puppeteer"],
-            link: "#",
+            tags: ["Python", "LLMs", "Playwright", "Web Scraping", "JSON Schema"],
+            link: "https://github.com/Ron-312/deep-search-engine",
             color: "from-blue-500 to-indigo-600"
         },
         {
@@ -52,10 +52,12 @@ export default function Portfolio() {
                 return '⚡';
             case 'NLP':
                 return '💬';
-            case 'Puppeteer':
-                return '🧩';
+            case 'Playwright':
+                return '🎭';
             case 'cuML':
                 return '🧠';
+            case 'JSON Schema':
+                return '📋';
             default:
                 return '🔧';
         }
