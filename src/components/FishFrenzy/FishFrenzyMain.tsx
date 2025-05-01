@@ -167,9 +167,13 @@ export default function FishFrenzy({ height = "h-96" }: FishFrenzyProps) {
         let playerFish: THREE.Group;
         let playerFishModel: THREE.Group | null = null;
         const fishList: { object: THREE.Object3D, speed: number, direction: THREE.Vector3, type: string, size: string, exactSize: number }[] = [];
-        const playerSpeed = 0.05;
+        const playerSpeed = 0.07;
         let playerScore = 0;
         let currentPlayerSize = playerSize;
+
+        let gridFrame = 0;
+        const CELL_SIZE = 8;  // tweak up/down to balance bucket density
+
 
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0x0077be);
@@ -830,8 +834,33 @@ export default function FishFrenzy({ height = "h-96" }: FishFrenzyProps) {
         // Increase these values for faster rotation
         const rotationAcceleration = 0.02; // Increased from 0.01
 
+        // ─────── Broad-phase collision grid ───────
+        const GRID = new Map<string, number[]>(); // cellKey → array of fishList indices
+
+        function gridKey(v: THREE.Vector3, cellSize: number) {
+            const x = Math.floor(v.x / cellSize);
+            const y = Math.floor(v.y / cellSize);
+            const z = Math.floor(v.z / cellSize);
+            return `${x}|${y}|${z}`;
+        }
+
+        /** Rebuilds the grid buckets. Call this every 10 frames or on spawn/remove. */
+        function rebuildGrid(cellSize = 8) {
+            GRID.clear();
+            fishList.forEach((fish, idx) => {
+                const key = gridKey(fish.object.position, cellSize);
+                const bucket = GRID.get(key) ?? [];
+                bucket.push(idx);
+                GRID.set(key, bucket);
+            });
+        }
 
         function updateFish(dt: number) {
+            // rebuild every 10 logic ticks
+            gridFrame++;
+            if (gridFrame % 10 === 0) {
+                rebuildGrid(CELL_SIZE);
+            }
             // ——— PLAYER ROTATION (Yaw / Pitch) ———
             if (!playerFish.rotation.order) playerFish.rotation.order = 'XYZ';
 
