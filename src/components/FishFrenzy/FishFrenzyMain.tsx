@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 // import { motion } from 'framer-motion';
-import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
 
 import JoystickControl from './JoystickControl';
 
@@ -36,40 +37,50 @@ interface FullscreenDocument extends Document {
 const fishTypes = [
     {
         name: "Squid",
-        modelPath: "/gameModels/11097_squid_v1.obj",
+        modelPath: "/gameModels/11097_squid_v1.glb",
         scale: { x: 0.02, y: 0.02, z: 0.02 },
         speed: 0.036,
         sizeCategory: "medium-small"
     },
     {
         name: "Black Moor Goldfish",
-        modelPath: "/gameModels/12990_Black_Moor_Goldfish_v1_l2.obj",
+        modelPath: "/gameModels/12990_Black_Moor_Goldfish_v1_l2.glb",
         scale: { x: 0.015, y: 0.015, z: 0.015 },
         speed: 0.025,
         sizeCategory: "small"
     },
     {
         name: "Hammerhead Shark",
-        modelPath: "/gameModels/19412_Hammerhead_Shark_v2.obj",
+        modelPath: "/gameModels/19412_Hammerhead_Shark_v2.glb",
         scale: { x: 0.04, y: 0.04, z: 0.04 },
         speed: 0.035,
         sizeCategory: "large"
     },
     {
         name: "Rainbow Trout",
-        modelPath: "/gameModels/21859_Rainbow_Trout_v1.obj",
+        modelPath: "/gameModels/21859_Rainbow_Trout_v1.glb",
         scale: { x: 0.025, y: 0.025, z: 0.025 },
         speed: 0.01,
         sizeCategory: "medium"
     },
     {
         name: "Goblin Shark",
-        modelPath: "/gameModels/21861_Goblin_Shark_v1.obj",
+        modelPath: "/gameModels/21861_Goblin_Shark_v1.glb",
         scale: { x: 0.05, y: 0.05, z: 0.05 },
         speed: 0.02,
         sizeCategory: "extra-large"
     }
 ];
+
+// ────────────────────────────────────────────────────────────────
+// Set up one GLTFLoader with DRACO compression
+const draco = new DRACOLoader();
+// point this at the folder containing draco_decoder.js / wasm files
+draco.setDecoderPath('/draco/');
+
+const gltfLoader = new GLTFLoader();
+gltfLoader.setDRACOLoader(draco);
+// ────────────────────────────────────────────────────────────────
 
 export default function FishFrenzy({ height = "h-96" }: FishFrenzyProps) {
     const gameRef = useRef<HTMLDivElement>(null);
@@ -163,6 +174,10 @@ export default function FishFrenzy({ height = "h-96" }: FishFrenzyProps) {
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0x0077be);
 
+        const clock = new THREE.Clock();    // for measuring real time
+        const logicStep = 1 / 30;               // 30 updates per second (≈33 ms)
+        let logicAccum = 0;                    // “time debt” accumulator
+
         const camera = new THREE.PerspectiveCamera(
             75,
             currentRef.clientWidth / currentRef.clientHeight,
@@ -175,6 +190,8 @@ export default function FishFrenzy({ height = "h-96" }: FishFrenzyProps) {
         camera.up.set(0, 1, 0);
 
         const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.2));
+        renderer.outputColorSpace = THREE.SRGBColorSpace;
         renderer.setSize(currentRef.clientWidth, currentRef.clientHeight);
         currentRef.appendChild(renderer.domElement);
 
@@ -291,22 +308,22 @@ export default function FishFrenzy({ height = "h-96" }: FishFrenzyProps) {
 
         function loadPlayerFish(size: number): Promise<THREE.Group> {
             return new Promise((resolve, reject) => {
-                const objLoader = new OBJLoader();
 
                 interface LoaderProgress {
                     loaded: number;
                     total: number;
                 }
+                gltfLoader.load(
+                    '/gameModels/13007_Blue-Green_Reef_Chromis_v2_l3.glb',
+                    (gltf) => {
+                        // 1) Grab the scene Group out of the GLB
+                        const object = gltf.scene;
 
-                objLoader.load(
-                    '/gameModels/13007_Blue-Green_Reef_Chromis_v2_l3.obj',
-                    (object: THREE.Group) => {
-                        // Add this code to apply material to the player fish
+                        // 2) Your existing material + scale logic (unchanged)
                         object.traverse((child: THREE.Object3D) => {
                             if (child instanceof THREE.Mesh) {
-                                // Give player fish a distinctive blue/teal color
                                 child.material = new THREE.MeshPhongMaterial({
-                                    color: 0x2cc8de,  // Bright teal blue
+                                    color: 0x2cc8de,     // Bright teal blue
                                     shininess: 100,
                                     specular: 0x333333,
                                     emissive: 0x114455,  // Slight glow
@@ -317,19 +334,24 @@ export default function FishFrenzy({ height = "h-96" }: FishFrenzyProps) {
 
                         const scaleFactor: number = size * 0.1;
                         object.scale.set(scaleFactor, scaleFactor, scaleFactor);
-                        // object.rotation.y = Math.PI;
 
+                        // 3) Cache the model for reuse
                         if (!playerFishModel) {
                             playerFishModel = object.clone();
                         }
 
+                        // 4) Resolve the promise with your THREE.Group
                         resolve(object);
                     },
-                    (xhr: LoaderProgress) => {
-                        console.log((xhr.loaded / xhr.total) * 100 + '% loaded');
+                    (progressEvent) => {
+                        // Optional progress logging
+                        if (progressEvent.total) {
+                            const pct = Math.floor((progressEvent.loaded / progressEvent.total) * 100);
+                            console.log(`${pct}% loaded`);
+                        }
                     },
-                    (error: unknown) => {
-                        console.error('Error loading fish model:', error);
+                    (error) => {
+                        console.error('Error loading player GLB model:', error);
                         reject(error);
                     }
                 );
@@ -357,119 +379,12 @@ export default function FishFrenzy({ height = "h-96" }: FishFrenzyProps) {
             .catch(() => {
             });
 
-            function createFish(fishType: typeof fishTypes[0]) {
-                // 1. Check if we can reuse a fish from the pool
-                if (fishPool.length > 0) {
-                    const recycledFish = fishPool.pop()!;
-                    
-                    // Calculate size
-                    let exactSize: number;
-                    switch (fishType.sizeCategory) {
-                        case "small": exactSize = 0.5 + Math.random() * 0.3; break;
-                        case "medium-small": exactSize = 1.0 + Math.random() * 0.3; break; 
-                        case "medium": exactSize = 1.5 + Math.random() * 0.3; break;
-                        case "large": exactSize = 2.0 + Math.random() * 0.5; break;
-                        case "extra-large": exactSize = 2.8 + Math.random() * 1.0; break;
-                        default: exactSize = 1.0;
-                    }
-                    
-                    // Reset scale (reuse fish but with new size)
-                    recycledFish.scale.set(
-                        fishType.scale.x * exactSize,
-                        fishType.scale.y * exactSize,
-                        fishType.scale.z * exactSize
-                    );
-                    
-                    // Find position
-                    let x = 0, y = 0, z = 0;
-                    const minDistance = fishList.length === 0 ? 20 : 10;
-                    
-                    // Maximum 5 attempts to find a suitable position (avoids infinite loops)
-                    for (let attempts = 0; attempts < 5; attempts++) {
-                        x = Math.random() * 80 - 40;
-                        y = Math.random() * 20 - 10;
-                        z = Math.random() * 80 - 40;
-                        
-                        if (!playerFish) break; // No player, any position is fine
-                        
-                        // Use temp vector to avoid creating new objects
-                        tempPosition.set(x, y, z);
-                        const distance = tempPosition.distanceTo(playerFish.position);
-                        
-                        if (distance > minDistance) break;
-                        
-                        // Last attempt - use position anyway but push it farther
-                        if (attempts === 4) {
-                            const dirFromPlayer = tempPosition.sub(playerFish.position).normalize();
-                            tempPosition.addScaledVector(dirFromPlayer, minDistance);
-                            x = tempPosition.x;
-                            y = tempPosition.y;
-                            z = tempPosition.z;
-                        }
-                    }
-                    
-                    recycledFish.position.set(x, y, z);
-                    recycledFish.rotation.set(
-                        Math.PI / 2,
-                        Math.random() * Math.PI * 2,
-                        0
-                    );
-                    
-                    // Reuse or create material based on edible/dangerous
-                    const materialType = exactSize < currentPlayerSize ? 'edible' : 'dangerous';
-                    const hue = materialType === 'edible' 
-                        ? 0.3 + Math.random() * 0.3  // green/blue
-                        : Math.random() * 0.15;      // red/orange
-                        
-                    // Create a material key based on approximate hue (limit to 5 variations)
-                    const materialKey = `${materialType}_${Math.floor(hue * 10)}`;
-                    
-                    // Reuse existing material or create new one (limit total materials)
-                    if (!fishMaterials[materialType][materialKey]) {
-                        if (Object.keys(fishMaterials[materialType]).length >= 5) {
-                            // Reuse an existing material if we have too many
-                            const existingKey = Object.keys(fishMaterials[materialType])[0];
-                            fishMaterials[materialType][materialKey] = fishMaterials[materialType][existingKey];
-                        } else {
-                            // Create new material
-                            fishMaterials[materialType][materialKey] = new THREE.MeshPhongMaterial({
-                                color: new THREE.Color().setHSL(hue, 0.7, 0.5),
-                                shininess: 50, // Reduced shininess 
-                                specular: 0x111111 // Reduced specular
-                            });
-                        }
-                    }
-                    
-                    // Apply material to all mesh parts
-                    recycledFish.traverse((child: THREE.Object3D) => {
-                        if (child instanceof THREE.Mesh) {
-                            child.material = fishMaterials[materialType][materialKey];
-                        }
-                    });
-                    
-                    // Make visible and add back to scene
-                    recycledFish.visible = true;
-                    scene.add(recycledFish);
-                    
-                    // Add to fish list
-                    fishList.push({
-                        object: recycledFish,
-                        speed: fishType.speed * (0.7 + Math.random() * 0.6),
-                        direction: new THREE.Vector3(
-                            Math.random() - 0.5,
-                            Math.random() - 0.5,
-                            Math.random() - 0.5
-                        ).normalize(),
-                        type: fishType.name,
-                        size: fishType.sizeCategory,
-                        exactSize: exactSize
-                    });
-                    
-                    return; // Done with recycled fish
-                }
-                
-                // 2. If no recycled fish available, load a new one (existing code but with reduced complexity)
-                const loader = new OBJLoader();
+        function createFish(fishType: typeof fishTypes[0]) {
+            // 1. Check if we can reuse a fish from the pool
+            if (fishPool.length > 0) {
+                const recycledFish = fishPool.pop()!;
+
+                // Calculate size
                 let exactSize: number;
                 switch (fishType.sizeCategory) {
                     case "small": exactSize = 0.5 + Math.random() * 0.3; break;
@@ -479,74 +394,171 @@ export default function FishFrenzy({ height = "h-96" }: FishFrenzyProps) {
                     case "extra-large": exactSize = 2.8 + Math.random() * 1.0; break;
                     default: exactSize = 1.0;
                 }
-            
-                // Use a simplified loading approach for new fish
-                loader.load(fishType.modelPath, (object) => {
-                    // Scale fish
+
+                // Reset scale (reuse fish but with new size)
+                recycledFish.scale.set(
+                    fishType.scale.x * exactSize,
+                    fishType.scale.y * exactSize,
+                    fishType.scale.z * exactSize
+                );
+
+                // Find position
+                let x = 0, y = 0, z = 0;
+                const minDistance = fishList.length === 0 ? 20 : 10;
+
+                // Maximum 5 attempts to find a suitable position (avoids infinite loops)
+                for (let attempts = 0; attempts < 5; attempts++) {
+                    x = Math.random() * 80 - 40;
+                    y = Math.random() * 20 - 10;
+                    z = Math.random() * 80 - 40;
+
+                    if (!playerFish) break; // No player, any position is fine
+
+                    // Use temp vector to avoid creating new objects
+                    tempPosition.set(x, y, z);
+                    const distance = tempPosition.distanceTo(playerFish.position);
+
+                    if (distance > minDistance) break;
+
+                    // Last attempt - use position anyway but push it farther
+                    if (attempts === 4) {
+                        const dirFromPlayer = tempPosition.sub(playerFish.position).normalize();
+                        tempPosition.addScaledVector(dirFromPlayer, minDistance);
+                        x = tempPosition.x;
+                        y = tempPosition.y;
+                        z = tempPosition.z;
+                    }
+                }
+
+                recycledFish.position.set(x, y, z);
+                recycledFish.rotation.set(
+                    Math.PI / 2,
+                    Math.random() * Math.PI * 2,
+                    0
+                );
+
+                // Reuse or create material based on edible/dangerous
+                const materialType = exactSize < currentPlayerSize ? 'edible' : 'dangerous';
+                const hue = materialType === 'edible'
+                    ? 0.3 + Math.random() * 0.3  // green/blue
+                    : Math.random() * 0.15;      // red/orange
+
+                // Create a material key based on approximate hue (limit to 5 variations)
+                const materialKey = `${materialType}_${Math.floor(hue * 10)}`;
+
+                // Reuse existing material or create new one (limit total materials)
+                if (!fishMaterials[materialType][materialKey]) {
+                    if (Object.keys(fishMaterials[materialType]).length >= 5) {
+                        // Reuse an existing material if we have too many
+                        const existingKey = Object.keys(fishMaterials[materialType])[0];
+                        fishMaterials[materialType][materialKey] = fishMaterials[materialType][existingKey];
+                    } else {
+                        // Create new material
+                        fishMaterials[materialType][materialKey] = new THREE.MeshPhongMaterial({
+                            color: new THREE.Color().setHSL(hue, 0.7, 0.5),
+                            shininess: 50, // Reduced shininess 
+                            specular: 0x111111 // Reduced specular
+                        });
+                    }
+                }
+
+                // Apply material to all mesh parts
+                recycledFish.traverse((child: THREE.Object3D) => {
+                    if (child instanceof THREE.Mesh) {
+                        child.material = fishMaterials[materialType][materialKey];
+                    }
+                });
+
+                // Make visible and add back to scene
+                recycledFish.visible = true;
+                scene.add(recycledFish);
+
+                // Add to fish list
+                fishList.push({
+                    object: recycledFish,
+                    speed: fishType.speed * (0.7 + Math.random() * 0.6),
+                    direction: new THREE.Vector3(
+                        Math.random() - 0.5,
+                        Math.random() - 0.5,
+                        Math.random() - 0.5
+                    ).normalize(),
+                    type: fishType.name,
+                    size: fishType.sizeCategory,
+                    exactSize: exactSize
+                });
+
+                return; // Done with recycled fish
+            }
+
+            // 2. If no recycled fish available, load a new one (existing code but with reduced complexity)
+            let exactSize: number;
+            switch (fishType.sizeCategory) {
+                case "small": exactSize = 0.5 + Math.random() * 0.3; break;
+                case "medium-small": exactSize = 1.0 + Math.random() * 0.3; break;
+                case "medium": exactSize = 1.5 + Math.random() * 0.3; break;
+                case "large": exactSize = 2.0 + Math.random() * 0.5; break;
+                case "extra-large": exactSize = 2.8 + Math.random() * 1.0; break;
+                default: exactSize = 1.0;
+            }
+
+            // Use a simplified loading approach for new fish
+            gltfLoader.load(
+                fishType.modelPath,
+                (gltf) => {
+                    // 1) grab your fish model
+                    const object = gltf.scene;
+
+                    // 2) scale
                     object.scale.set(
                         fishType.scale.x * exactSize,
                         fishType.scale.y * exactSize,
                         fishType.scale.z * exactSize
                     );
-            
-                    // Simplified position finding (similar to recycled fish)
+
+                    // 3) position logic (unchanged)
                     let x = Math.random() * 80 - 40;
                     let y = Math.random() * 20 - 10;
                     let z = Math.random() * 80 - 40;
-                    
                     if (playerFish) {
                         tempPosition.set(x, y, z);
                         const distance = tempPosition.distanceTo(playerFish.position);
-                        
                         if (distance < 10) {
-                            // Push it away from player
-                            const dirFromPlayer = tempPosition.sub(playerFish.position).normalize();
-                            tempPosition.addScaledVector(dirFromPlayer, 10);
-                            x = tempPosition.x;
-                            y = tempPosition.y;
-                            z = tempPosition.z;
+                            const dir = tempPosition.sub(playerFish.position).normalize();
+                            tempPosition.addScaledVector(dir, 10);
+                            x = tempPosition.x; y = tempPosition.y; z = tempPosition.z;
                         }
                     }
-                    
                     object.position.set(x, y, z);
-                    object.rotation.set(
-                        Math.PI / 2,
-                        Math.random() * Math.PI * 2,
-                        0
-                    );
-            
-                    // Simplified coloring with material reuse
+                    object.rotation.set(Math.PI / 2, Math.random() * Math.PI * 2, 0);
+
+                    // 4) material logic (unchanged)
                     const materialType = exactSize < currentPlayerSize ? 'edible' : 'dangerous';
-                    const hue = materialType === 'edible' 
-                        ? 0.3 + Math.random() * 0.3  // green/blue
-                        : Math.random() * 0.15;      // red/orange
-                        
-                    const materialKey = `${materialType}_${Math.floor(hue * 10)}`;
-                    
-                    // Same material logic as above
-                    if (!fishMaterials[materialType][materialKey]) {
+                    const hue = materialType === 'edible'
+                        ? 0.3 + Math.random() * 0.3
+                        : Math.random() * 0.15;
+                    const key = `${materialType}_${Math.floor(hue * 10)}`;
+                    if (!fishMaterials[materialType][key]) {
                         if (Object.keys(fishMaterials[materialType]).length >= 5) {
-                            const existingKey = Object.keys(fishMaterials[materialType])[0];
-                            fishMaterials[materialType][materialKey] = fishMaterials[materialType][existingKey];
+                            fishMaterials[materialType][key] =
+                                fishMaterials[materialType][Object.keys(fishMaterials[materialType])[0]];
                         } else {
-                            fishMaterials[materialType][materialKey] = new THREE.MeshPhongMaterial({
+                            fishMaterials[materialType][key] = new THREE.MeshPhongMaterial({
                                 color: new THREE.Color().setHSL(hue, 0.7, 0.5),
                                 shininess: 50,
                                 specular: 0x111111
                             });
                         }
                     }
-                    
-                    object.traverse((child: THREE.Object3D) => {
+                    object.traverse(child => {
                         if (child instanceof THREE.Mesh) {
-                            child.material = fishMaterials[materialType][materialKey];
+                            child.material = fishMaterials[materialType][key];
                         }
                     });
-            
+
+                    // 5) add to scene & list
                     scene.add(object);
-            
                     fishList.push({
-                        object: object,
+                        object,
                         speed: fishType.speed * (0.7 + Math.random() * 0.6),
                         direction: new THREE.Vector3(
                             Math.random() - 0.5,
@@ -555,10 +567,15 @@ export default function FishFrenzy({ height = "h-96" }: FishFrenzyProps) {
                         ).normalize(),
                         type: fishType.name,
                         size: fishType.sizeCategory,
-                        exactSize: exactSize
+                        exactSize
                     });
-                });
-            }
+                },
+                undefined,
+                (error) => {
+                    console.error('Error loading fish GLB model:', error);
+                }
+            );
+        }
 
         // Adjust the spawnFish function to spawn fewer dangerous fish at start
         function spawnFish(count = 10) {
@@ -813,169 +830,114 @@ export default function FishFrenzy({ height = "h-96" }: FishFrenzyProps) {
         // Increase these values for faster rotation
         const rotationAcceleration = 0.02; // Increased from 0.01
 
-        function animate() {
-            // If game is over, do nothing
-            if (isGameOver) return;
 
-            // Request the next frame
-            animationFrameId = requestAnimationFrame(animate);
+        function updateFish(dt: number) {
+            // ——— PLAYER ROTATION (Yaw / Pitch) ———
+            if (!playerFish.rotation.order) playerFish.rotation.order = 'XYZ';
 
-            // -------------------- ROTATION: Yaw (Left/Right) --------------------
-            // Make sure fish rotation order allows separate yaw/pitch adjustments
-            if (!playerFish.rotation.order) {
-                playerFish.rotation.order = 'XYZ';
-            }
-
-            // For yaw (left/right) around the desired axis (assume you want to rotate about the blue axis)
             if (keysPressed.current['d']) {
-                const yawAngle = rotationAcceleration;
-                // For example, if you want to use the fish's local blue axis,
-                // determine that axis properly (here, you may need to define it manually based on your model).
-                const yawAxis = new THREE.Vector3(0, 0, 1); // adjust if necessary
-                const qYaw = new THREE.Quaternion().setFromAxisAngle(yawAxis, yawAngle);
-                playerFish.quaternion.multiply(qYaw);
+                const q = new THREE.Quaternion().setFromAxisAngle(
+                    new THREE.Vector3(0, 0, 1),
+                    rotationAcceleration
+                );
+                playerFish.quaternion.multiply(q);
             } else if (keysPressed.current['a']) {
-                const yawAngle = -rotationAcceleration;
-                const yawAxis = new THREE.Vector3(0, 0, 1);
-                const qYaw = new THREE.Quaternion().setFromAxisAngle(yawAxis, yawAngle);
-                playerFish.quaternion.multiply(qYaw);
+                const q = new THREE.Quaternion().setFromAxisAngle(
+                    new THREE.Vector3(0, 0, 1),
+                    -rotationAcceleration
+                );
+                playerFish.quaternion.multiply(q);
             }
 
-            // For pitch (up/down) around the appropriate local axis (e.g. local X)
             if (keysPressed.current['w']) {
-                const pitchAngle = rotationAcceleration;
-                const pitchAxis = new THREE.Vector3(1, 0, 0); // adjust if needed
-                const qPitch = new THREE.Quaternion().setFromAxisAngle(pitchAxis, pitchAngle);
-                playerFish.quaternion.multiply(qPitch);
+                const q = new THREE.Quaternion().setFromAxisAngle(
+                    new THREE.Vector3(1, 0, 0),
+                    rotationAcceleration
+                );
+                playerFish.quaternion.multiply(q);
             } else if (keysPressed.current['s']) {
-                const pitchAngle = -rotationAcceleration;
-                const pitchAxis = new THREE.Vector3(1, 0, 0);
-                const qPitch = new THREE.Quaternion().setFromAxisAngle(pitchAxis, pitchAngle);
-                playerFish.quaternion.multiply(qPitch);
+                const q = new THREE.Quaternion().setFromAxisAngle(
+                    new THREE.Vector3(1, 0, 0),
+                    -rotationAcceleration
+                );
+                playerFish.quaternion.multiply(q);
             }
 
-            // -------------------- FORWARD MOTION (always moving) ----------------
-            // Optionally, you can let the user "sprint" by holding Shift
-            const isSprinting = keysPressed.current['shift'];
-            const currentForwardSpeed = isSprinting ? playerSpeed * 1.3 : playerSpeed;
+            // ——— PLAYER FORWARD MOTION ———
+            const isSprint = keysPressed.current['shift'];
+            const fwdSpeed = isSprint ? playerSpeed * 1.3 : playerSpeed;
+            const forward = new THREE.Vector3(0, -1, 0)
+                .applyQuaternion(playerFish.quaternion)
+                .normalize();
+            playerFish.position.add(forward.clone().multiplyScalar(fwdSpeed));
 
-            // Calculate a forward direction vector from the fish’s current quaternion
-            const forward = new THREE.Vector3(0, -1, 0);
-            forward.applyQuaternion(playerFish.quaternion);
-            forward.normalize();
-
-            // Slowly keep fish level for the first 100 frames, if desired
-            // if (frameCount < 100) {
-            //     forward.y = Math.max(-0.05, forward.y);
-            //     frameCount++;
-            // }
-
-            // Move the fish forward
-            playerFish.position.add(forward.clone().multiplyScalar(currentForwardSpeed));
-
-            // -------------------- SWIMMING IDLE MOTION --------------------------
-            // Add a gentle bob and slight roll when not actively rotating
-            // // (This is purely aesthetic; skip if you don’t want it.)
-            // if (Math.abs(yawVelocity) < 0.001 && Math.abs(pitchVelocity) < 0.001) {
-            //     playerFish.position.y += Math.sin(Date.now() * 0.002) * 0.01;
-            //     playerFish.rotation.z = Math.sin(Date.now() * 0.001) * 0.05;
-            // }
-
-            // -------------------- THIRD-PERSON CAMERA LOGIC ---------------------
-            // Position camera behind the fish
-            const cameraDistance = 4 + currentPlayerSize;
-            const cameraHeight = 2.5 + currentPlayerSize * 0.4;
-
-            // "backward" direction is just the negative of forward
+            // ——— CAMERA FOLLOW (third-person) ———
+            const camDist = 4 + currentPlayerSize;
+            const camHeight = 2.5 + currentPlayerSize * 0.4;
             const backward = forward.clone().negate();
-
-            // Ideal camera position behind and slightly above the fish
-            const idealCameraPos = playerFish.position.clone()
-                .add(backward.multiplyScalar(cameraDistance))
-                .add(new THREE.Vector3(0.7, cameraHeight, 0));
-
-            // Smoothly interpolate camera position for a smooth follow
-            camera.position.lerp(idealCameraPos, 0.05);
-
-            // Make camera look toward where the fish is headed
-            const lookAheadDistance = 3 + currentPlayerSize;
-            const lookTarget = playerFish.position.clone().add(forward.clone().multiplyScalar(lookAheadDistance));
+            const idealCamPos = playerFish.position.clone()
+                .add(backward.multiplyScalar(camDist))
+                .add(new THREE.Vector3(0.7, camHeight, 0));
+            camera.position.lerp(idealCamPos, 0.05);
+            const lookTarget = playerFish.position.clone()
+                .add(forward.clone().multiplyScalar(3 + currentPlayerSize));
             camera.lookAt(lookTarget);
 
-            // In your animate function, modify the enemy fish movement section:
-
-            // -------------------- ENEMY FISH MOVEMENT ---------------------------
+            // ——— ENEMY FISH MOVEMENT ———
+            const time = Date.now() * 0.001;
             for (let i = 0; i < fishList.length; i++) {
                 const fish = fishList[i];
-                const fishObj = fish.object;
+                const obj = fish.object;
+                // base movement
+                const move = fish.direction.clone().multiplyScalar(fish.speed);
+                // oscillation for natural swim
+                move.x += Math.sin(time + i) * 0.05;
+                move.y += Math.cos(time + i) * 0.025;
+                obj.position.add(move);
 
-                // Calculate base movement vector from the fish's direction and speed
-                const movement = fish.direction.clone().multiplyScalar(fish.speed);
-
-                // Add an oscillatory offset for a natural swimming effect:
-                const time = Date.now() * 0.001; // time in seconds
-                const oscillationAmplitude = 0.05; // adjust amplitude for gentler or stronger motion
-
-                // For example, add a slight side-to-side oscillation to the x-axis:
-                movement.x += Math.sin(time + i) * oscillationAmplitude;
-                // Optionally, add a vertical bobbing on the y-axis:
-                movement.y += Math.cos(time + i) * (oscillationAmplitude * 0.5);
-
-                // Update the fish's position with the combined movement
-                fishObj.position.add(movement);
-
-                // Bounce off boundaries, but with ASYMMETRIC y-bounds to respect ocean floor:
-                const boundsX = 30;
-                const boundsZ = 30;
-                const maxY = 10;     // Maximum height
-                const minY = -9;     // Minimum height (just above ocean floor at -10)
-
-                if (Math.abs(fishObj.position.x) > boundsX) {
+                // bounds bounce (asymmetric Y)
+                if (Math.abs(obj.position.x) > 30) {
                     fish.direction.x *= -1;
-                    // Push back within bounds
-                    fishObj.position.x = Math.sign(fishObj.position.x) * boundsX;
+                    obj.position.x = Math.sign(obj.position.x) * 30;
                 }
-
-                // Asymmetric Y bounds (ceiling vs floor)
-                if (fishObj.position.y > maxY) {
-                    fish.direction.y *= -1;
-                    fishObj.position.y = maxY;
-                } else if (fishObj.position.y < minY) {
-                    fish.direction.y *= -1;
-                    fishObj.position.y = minY;
-
-                    // Add a small upward impulse when hitting the floor
-                    fish.direction.y = Math.abs(fish.direction.y);
+                if (obj.position.y > 10) {
+                    fish.direction.y *= -1; obj.position.y = 10;
+                } else if (obj.position.y < -9) {
+                    fish.direction.y = Math.abs(fish.direction.y); obj.position.y = -9;
                 }
-
-                if (Math.abs(fishObj.position.z) > boundsZ) {
+                if (Math.abs(obj.position.z) > 30) {
                     fish.direction.z *= -1;
-                    // Push back within bounds
-                    fishObj.position.z = Math.sign(fishObj.position.z) * boundsZ;
+                    obj.position.z = Math.sign(obj.position.z) * 30;
                 }
 
-                // Let the fish face its movement direction:
-                // Compute a target position based on its current direction:
-                const targetPos = fishObj.position.clone().add(fish.direction);
-                fishObj.lookAt(targetPos);
-
-                // Optionally, add a slight roll to simulate a swimming motion:
-                fishObj.rotation.z = Math.sin(time + i) * 0.1;
+                // face movement direction + slight roll
+                const target = obj.position.clone().add(fish.direction);
+                obj.lookAt(target);
+                obj.rotation.z = Math.sin(time + i) * 0.1;
             }
 
-            // -------------------- COLLISIONS ---------------------------
-            // (Assumes you have a checkCollision function)
+            // ——— COLLISIONS ———
             checkCollision();
 
-            // -------------------- SPAWN NEW FISH OCCASIONALLY ----------
-            if (Date.now() % 2000 < 20) {
-                spawnFish(3);
+            // ——— SPAWN NEW FISH OCCASIONALLY ———
+            if (Date.now() % 2000 < 20) spawnFish(3);
+
+            // ——— PARTICLE MOTION ———
+            particles.rotation.y += 0.0001;
+        }
+        function animate() {
+            if (isGameOver) return;
+            animationFrameId = requestAnimationFrame(animate);
+
+            const dt = clock.getDelta();
+            logicAccum += dt;
+
+            // catch up simulation in fixed slices
+            while (logicAccum >= logicStep) {
+                updateFish(logicStep);
+                logicAccum -= logicStep;
             }
 
-            // -------------------- PARTICLES MOTION ----------------------
-            particles.rotation.y += 0.0001;
-
-            // -------------------- RENDER THE SCENE ----------------------
             renderer.render(scene, camera);
         }
 
