@@ -378,10 +378,10 @@ export default function FishFrenzy({ height = "h-96" }: FishFrenzyProps) {
         function loadPlayerFish(size: number): Promise<THREE.Group> {
             return new Promise((resolve, reject) => {
 
-                interface LoaderProgress {
-                    loaded: number;
-                    total: number;
-                }
+                // interface LoaderProgress {
+                //     loaded: number;
+                //     total: number;
+                // }
                 gltfLoader.load(
                     '/gameModels/13007_Blue-Green_Reef_Chromis_v2_l3.glb',
                     (gltf) => {
@@ -920,7 +920,7 @@ export default function FishFrenzy({ height = "h-96" }: FishFrenzyProps) {
             });
         }
 
-        function updateFish(dt: number) {
+        function updateFish() {
             // rebuild every 10 logic ticks
             gridFrame++;
             if (gridFrame % 10 === 0) {
@@ -1028,7 +1028,7 @@ export default function FishFrenzy({ height = "h-96" }: FishFrenzyProps) {
 
             // catch up simulation in fixed slices
             while (logicAccum >= logicStep) {
-                updateFish(logicStep);
+                updateFish();
                 logicAccum -= logicStep;
             }
 
