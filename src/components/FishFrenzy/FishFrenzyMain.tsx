@@ -158,6 +158,7 @@ export default function FishFrenzy({ height = "h-96" }: FishFrenzyProps) {
         if (!gameRef.current || !gameStarted) return;
 
         const invulnerableUntil = Date.now() + 3000; // 3 seconds of immunity
+        const isMobile = window.innerWidth < 600;
 
         setLoading(true);
         const currentRef = gameRef.current;
@@ -194,7 +195,7 @@ export default function FishFrenzy({ height = "h-96" }: FishFrenzyProps) {
         camera.up.set(0, 1, 0);
 
         const renderer = new THREE.WebGLRenderer({ antialias: true });
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.2));
+        renderer.setPixelRatio(isMobile ? 1 : Math.min(window.devicePixelRatio, 1.2));
         renderer.outputColorSpace = THREE.SRGBColorSpace;
         renderer.setSize(currentRef.clientWidth, currentRef.clientHeight);
         currentRef.appendChild(renderer.domElement);
@@ -214,7 +215,7 @@ export default function FishFrenzy({ height = "h-96" }: FishFrenzyProps) {
         frontLight.position.set(0, 0, 10);
         scene.add(frontLight);
 
-        const particleCount = 1000;
+        const particleCount = isMobile ? 200 : 1000;
         const particleGeometry = new THREE.BufferGeometry();
         const particlePositions = new Float32Array(particleCount * 3);
 
@@ -236,7 +237,7 @@ export default function FishFrenzy({ height = "h-96" }: FishFrenzyProps) {
         const particles = new THREE.Points(particleGeometry, particleMaterial);
         scene.add(particles);
 
-        scene.fog = new THREE.FogExp2(0x0077be, 0.02);
+        if (!isMobile) scene.fog = new THREE.FogExp2(0x0077be, 0.02);
 
         const floorGeometry = new THREE.PlaneGeometry(100, 100, 20, 20); // Reduced from 200x200
         const floorMaterial = new THREE.MeshPhongMaterial({
@@ -249,66 +250,130 @@ export default function FishFrenzy({ height = "h-96" }: FishFrenzyProps) {
         oceanFloor.position.y = -10;
         scene.add(oceanFloor);
 
+
+        let treeCoralGeo: THREE.BufferGeometry;
+        let treeCoralMat: THREE.Material;
+
+        let enviroCoralGeo: THREE.BufferGeometry;
+        let enviroCoralMat: THREE.Material;
+
+
+        const loadTreeCoral = new Promise<void>((resolve, reject) => {
+            gltfLoader.load(
+                '/gameModels/21488_Tree_Coral_v2_NEW.glb',
+                (gltf) => {
+                    const mesh = gltf.scene.children.find(
+                        (c): c is THREE.Mesh => c instanceof THREE.Mesh
+                    );
+                    if (!mesh) {
+                        return reject(new Error('Tree coral mesh not found'));
+                    }
+                    treeCoralGeo = mesh.geometry.clone();
+                    treeCoralGeo.applyMatrix4(new THREE.Matrix4().makeRotationX(-Math.PI / 2));
+                    treeCoralGeo.applyMatrix4(
+                        new THREE.Matrix4().makeRotationZ(Math.PI)
+                    );
+                    const mat = mesh.material;
+                    treeCoralMat = Array.isArray(mat) ? mat[0] : mat;
+
+                    // ←—— Call resolve() here so Promise.all can complete!
+                    resolve();
+                },
+                undefined,
+                (err) => {
+                    console.error('Tree coral load failed:', err);
+                    reject(err);
+                }
+            );
+        });
+
+
+        const loadEnviroCoral = new Promise<void>((resolve, reject) => {
+            gltfLoader.load(
+                '/gameModels/underwater_enviro_coral.glb',
+                (gltf) => {
+                    const mesh = gltf.scene.children.find(
+                        (c): c is THREE.Mesh => c instanceof THREE.Mesh
+                    );
+                    if (!mesh) {
+                        return reject(new Error('Enviro coral mesh not found'));
+                    }
+                    enviroCoralGeo = mesh.geometry;
+                    const mat = mesh.material;
+                    enviroCoralMat = Array.isArray(mat) ? mat[0] : mat;
+                    resolve();
+                },
+                undefined,
+                (err) => {
+                    console.error('Env coral load failed:', err);
+                    reject(err);
+                }
+            );
+        });
+
+
         // Add underwater plants/coral for the larger environment
         function addUnderwaterEnvironment() {
-            // Create some coral/plants on the ocean floor
-            for (let i = 0; i < 30; i++) {
-                const coral = new THREE.Group();
+            // wait until both are loaded
+            if (!treeCoralGeo || !treeCoralMat || !enviroCoralGeo || !enviroCoralMat) return;
 
-                // Create coral base
-                const baseGeometry = new THREE.CylinderGeometry(0.2, 0.5, 1.5, 8);
-                const baseMaterial = new THREE.MeshPhongMaterial({
-                    color: new THREE.Color().setHSL(Math.random() * 0.2 + 0.5, 0.8, 0.5),
-                    shininess: 30
-                });
-                const base = new THREE.Mesh(baseGeometry, baseMaterial);
-                base.position.y = 0.75;
-                coral.add(base);
+            const treeCount = 15;
+            const envCount = 15;
 
-                // Add branches to coral
-                const branchCount = Math.floor(Math.random() * 3) + 2;
-                for (let j = 0; j < branchCount; j++) {
-                    const branchGeometry = new THREE.ConeGeometry(0.2, 1.5, 8);
-                    const branchMaterial = new THREE.MeshPhongMaterial({
-                        color: new THREE.Color().setHSL(Math.random() * 0.2 + 0.5, 0.9, 0.6),
-                        shininess: 30
-                    });
-                    const branch = new THREE.Mesh(branchGeometry, branchMaterial);
+            // ——— Create two InstancedMeshes ———
+            const treeInst = new THREE.InstancedMesh(treeCoralGeo, treeCoralMat, treeCount);
+            const envInst = new THREE.InstancedMesh(enviroCoralGeo, enviroCoralMat, envCount);
 
-                    // Position branches at angles from the center
-                    const angle = (j / branchCount) * Math.PI * 2;
-                    const radius = 0.3;
-                    branch.position.set(
-                        Math.cos(angle) * radius,
-                        1.5,
-                        Math.sin(angle) * radius
-                    );
+            treeInst.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+            envInst.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
 
-                    // Angle branches outward
-                    branch.rotation.x = Math.random() * 0.5 - 0.25;
-                    branch.rotation.z = Math.random() * 0.5 - 0.25;
+            // dummy for building matrices
+            const dummy = new THREE.Object3D();
 
-                    coral.add(branch);
-                }
-
-                // Position coral randomly on ocean floor
-                coral.position.set(
-                    Math.random() * 80 - 40,  // Reduced from 160-80
-                    -9.8, // Keep same height (just above ocean floor)
-                    Math.random() * 80 - 40   // Reduced from 160-80
+            // ——— Position “tree” corals ———
+            for (let i = 0; i < treeCount; i++) {
+                dummy.position.set(
+                    Math.random() * 80 - 40,
+                    -9.8,
+                    Math.random() * 80 - 40
                 );
-
-                // Random rotation and scale
-                coral.rotation.y = Math.random() * Math.PI * 2;
-                const scale = 1 + Math.random() * 2;
-                coral.scale.set(scale, scale, scale);
-
-                scene.add(coral);
+                dummy.rotation.y = Math.random() * Math.PI * 2;
+                const s = 0.8 + Math.random() * 1.2;
+                dummy.scale.set(s, s, s);
+                dummy.updateMatrix();
+                treeInst.setMatrixAt(i, dummy.matrix);
             }
+
+            // ——— Position “environment” corals ———
+            for (let i = 0; i < envCount; i++) {
+                dummy.position.set(
+                    Math.random() * 80 - 40,
+                    -9.8,
+                    Math.random() * 80 - 40
+                );
+                dummy.rotation.y = Math.random() * Math.PI * 2;
+                const s = 0.8 + Math.random() * 1.2;
+                dummy.scale.set(s, s, s);
+                dummy.updateMatrix();
+                envInst.setMatrixAt(i, dummy.matrix);
+            }
+
+            treeInst.instanceMatrix.needsUpdate = true;
+            envInst.instanceMatrix.needsUpdate = true;
+
+            // add both to scene in one go
+            scene.add(treeInst, envInst);
         }
 
+
         // Call this function after you've created the ocean floor
-        addUnderwaterEnvironment();
+        Promise.all([loadTreeCoral, loadEnviroCoral])
+            .then(() => {
+                addUnderwaterEnvironment();
+            })
+            .catch((err) => {
+                console.error('Failed to load one or more coral models:', err);
+            });
 
         function loadPlayerFish(size: number): Promise<THREE.Group> {
             return new Promise((resolve, reject) => {
