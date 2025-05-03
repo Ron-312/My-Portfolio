@@ -174,7 +174,15 @@ export default function FishFrenzy({ height = "h-96" }: FishFrenzyProps) {
         let isGameOver = false;
         let playerFish: THREE.Group;
         let playerFishModel: THREE.Group | null = null;
-        const fishList: { object: THREE.Object3D, speed: number, direction: THREE.Vector3, type: string, size: string, exactSize: number }[] = [];
+        const fishList: {
+            object: THREE.Object3D;
+            speed: number;
+            direction: THREE.Vector3;
+            type: string;
+            size: string;
+            exactSize: number;
+            baseRadius: number;
+        }[] = [];
         const playerSpeed = 0.07;
         let playerScore = 0;
         let currentPlayerSize = playerSize;
@@ -382,53 +390,64 @@ export default function FishFrenzy({ height = "h-96" }: FishFrenzyProps) {
                 console.error('Failed to load one or more coral models:', err);
             });
 
+        // put this above updateFish / checkCollision so both can read it
+        let playerBaseRadius = 1;   // real mesh radius (un‑scaled)
+
+        /*───────────────────────────────────────────────────────────────*/
         function loadPlayerFish(size: number): Promise<THREE.Group> {
             return new Promise((resolve, reject) => {
-
-                // interface LoaderProgress {
-                //     loaded: number;
-                //     total: number;
-                // }
                 gltfLoader.load(
                     '/gameModels/13007_Blue-Green_Reef_Chromis_v2_l3.glb',
-                    (gltf) => {
-                        // 1) Grab the scene Group out of the GLB
+                    gltf => {
+                        // 1) grab the scene Group
                         const object = gltf.scene;
 
-                        // 2) Your existing material + scale logic (unchanged)
-                        object.traverse((child: THREE.Object3D) => {
+                        // 2) material tweak (unchanged)
+                        object.traverse(child => {
                             if (child instanceof THREE.Mesh) {
                                 child.material = new THREE.MeshPhongMaterial({
-                                    color: 0x2cc8de,     // Bright teal blue
+                                    color: 0x2cc8de,
                                     shininess: 100,
                                     specular: 0x333333,
-                                    emissive: 0x114455,  // Slight glow
+                                    emissive: 0x114455,
                                     emissiveIntensity: 0.2
                                 });
                             }
                         });
 
-                        const scaleFactor: number = size * 0.1;
+                        // 3) compute and cache the raw bounding‑sphere radius ONCE
+                        if (playerBaseRadius === 1) {     // only first time
+                            object.traverse(child => {
+                                if (child instanceof THREE.Mesh) {
+                                    const geo = child.geometry as THREE.BufferGeometry;
+                                    geo.computeBoundingSphere();
+                                    // shrink a bit so collisions feel fair
+                                    playerBaseRadius = geo.boundingSphere!.radius * 0.55;
+                                }
+                            });
+                        }
+
+                        // 4) initial scale
+                        const scaleFactor = size * 0.1;
                         object.scale.set(scaleFactor, scaleFactor, scaleFactor);
 
-                        // 3) Cache the model for reuse
+                        // 5) cache the model for reuse
                         if (!playerFishModel) {
                             playerFishModel = object.clone();
                         }
 
-                        // 4) Resolve the promise with your THREE.Group
+                        // 6) done
                         resolve(object);
                     },
-                    (progressEvent) => {
-                        // Optional progress logging
-                        if (progressEvent.total) {
-                            const pct = Math.floor((progressEvent.loaded / progressEvent.total) * 100);
+                    prog => {
+                        if (prog.total) {
+                            const pct = Math.floor((prog.loaded / prog.total) * 100);
                             console.log(`${pct}% loaded`);
                         }
                     },
-                    (error) => {
-                        console.error('Error loading player GLB model:', error);
-                        reject(error);
+                    err => {
+                        console.error('Error loading player GLB model:', err);
+                        reject(err);
                     }
                 );
             });
@@ -456,162 +475,145 @@ export default function FishFrenzy({ height = "h-96" }: FishFrenzyProps) {
             });
 
         function createFish(fishType: typeof fishTypes[0]) {
-            // 1. Check if we can reuse a fish from the pool
-            if (fishPool.length > 0) {
-                const recycledFish = fishPool.pop()!;
-
-                // Calculate size
-                let exactSize: number;
+            /* -------------------------------------------------- helpers */
+            const pickExactSize = () => {
                 switch (fishType.sizeCategory) {
-                    case "small": exactSize = 0.5 + Math.random() * 0.3; break;
-                    case "medium-small": exactSize = 1.0 + Math.random() * 0.3; break;
-                    case "medium": exactSize = 1.5 + Math.random() * 0.3; break;
-                    case "large": exactSize = 2.0 + Math.random() * 0.5; break;
-                    case "extra-large": exactSize = 2.8 + Math.random() * 1.0; break;
-                    default: exactSize = 1.0;
+                    case "small": return 0.5 + Math.random() * 0.3;
+                    case "medium-small": return 1.0 + Math.random() * 0.3;
+                    case "medium": return 1.5 + Math.random() * 0.3;
+                    case "large": return 2.0 + Math.random() * 0.5;
+                    case "extra-large": return 2.8 + Math.random() * 1.0;
+                    default: return 1.0;
                 }
+            };
 
-                // Reset scale (reuse fish but with new size)
-                recycledFish.scale.set(
+            const pushFish = (
+                obj: THREE.Group,
+                exactSize: number,
+                speed: number,
+                direction: THREE.Vector3
+            ) => {
+                /* ── measure raw (un‑scaled) radius once ── */
+                let rawRadius = 1;
+                obj.traverse(child => {
+                    if (child instanceof THREE.Mesh) {
+                        const geo = child.geometry as THREE.BufferGeometry;
+                        geo.computeBoundingSphere();
+                        rawRadius = geo.boundingSphere!.radius * 0.55;
+                    }
+                });
+
+                fishList.push({
+                    object: obj,
+                    speed,
+                    direction,
+                    type: fishType.name,
+                    size: fishType.sizeCategory,
+                    exactSize,
+                    baseRadius: rawRadius          // store real mesh radius
+                });
+            };
+
+            /* -------------------------------------------------- reuse vs. load */
+            const exactSize = pickExactSize();
+
+            /* ---------- POOL REUSE ---------- */
+            if (fishPool.length > 0) {
+                const obj = fishPool.pop()!;
+
+                obj.scale.set(
                     fishType.scale.x * exactSize,
                     fishType.scale.y * exactSize,
                     fishType.scale.z * exactSize
                 );
 
-                // Find position
+                /* position logic (unchanged) */
                 let x = 0, y = 0, z = 0;
                 const minDistance = fishList.length === 0 ? 20 : 10;
-
-                // Maximum 5 attempts to find a suitable position (avoids infinite loops)
-                for (let attempts = 0; attempts < 5; attempts++) {
+                for (let a = 0; a < 5; a++) {
                     x = Math.random() * 80 - 40;
                     y = Math.random() * 20 - 10;
                     z = Math.random() * 80 - 40;
-
-                    if (!playerFish) break; // No player, any position is fine
-
-                    // Use temp vector to avoid creating new objects
+                    if (!playerFish) break;
                     tempPosition.set(x, y, z);
-                    const distance = tempPosition.distanceTo(playerFish.position);
-
-                    if (distance > minDistance) break;
-
-                    // Last attempt - use position anyway but push it farther
-                    if (attempts === 4) {
-                        const dirFromPlayer = tempPosition.sub(playerFish.position).normalize();
-                        tempPosition.addScaledVector(dirFromPlayer, minDistance);
-                        x = tempPosition.x;
-                        y = tempPosition.y;
-                        z = tempPosition.z;
+                    if (tempPosition.distanceTo(playerFish.position) > minDistance) break;
+                    if (a === 4) {
+                        const dir = tempPosition.sub(playerFish.position).normalize();
+                        tempPosition.addScaledVector(dir, minDistance);
+                        ({ x, y, z } = tempPosition);
                     }
                 }
+                obj.position.set(x, y, z);
+                obj.rotation.set(Math.PI / 2, Math.random() * Math.PI * 2, 0);
 
-                recycledFish.position.set(x, y, z);
-                recycledFish.rotation.set(
-                    Math.PI / 2,
-                    Math.random() * Math.PI * 2,
-                    0
-                );
-
-                // Reuse or create material based on edible/dangerous
-                const materialType = exactSize < currentPlayerSize ? 'edible' : 'dangerous';
-                const hue = materialType === 'edible'
-                    ? 0.3 + Math.random() * 0.3  // green/blue
-                    : Math.random() * 0.15;      // red/orange
-
-                // Create a material key based on approximate hue (limit to 5 variations)
-                const materialKey = `${materialType}_${Math.floor(hue * 10)}`;
-
-                // Reuse existing material or create new one (limit total materials)
-                if (!fishMaterials[materialType][materialKey]) {
+                /* material logic (unchanged) */
+                const materialType = exactSize < currentPlayerSize ? "edible" : "dangerous";
+                const hue =
+                    materialType === "edible"
+                        ? 0.3 + Math.random() * 0.3
+                        : Math.random() * 0.15;
+                const key = `${materialType}_${Math.floor(hue * 10)}`;
+                if (!fishMaterials[materialType][key]) {
                     if (Object.keys(fishMaterials[materialType]).length >= 5) {
-                        // Reuse an existing material if we have too many
-                        const existingKey = Object.keys(fishMaterials[materialType])[0];
-                        fishMaterials[materialType][materialKey] = fishMaterials[materialType][existingKey];
+                        fishMaterials[materialType][key] =
+                            fishMaterials[materialType][Object.keys(fishMaterials[materialType])[0]];
                     } else {
-                        // Create new material
-                        fishMaterials[materialType][materialKey] = new THREE.MeshPhongMaterial({
+                        fishMaterials[materialType][key] = new THREE.MeshPhongMaterial({
                             color: new THREE.Color().setHSL(hue, 0.7, 0.5),
-                            shininess: 50, // Reduced shininess 
-                            specular: 0x111111 // Reduced specular
+                            shininess: 50,
+                            specular: 0x111111
                         });
                     }
                 }
-
-                // Apply material to all mesh parts
-                recycledFish.traverse((child: THREE.Object3D) => {
-                    if (child instanceof THREE.Mesh) {
-                        child.material = fishMaterials[materialType][materialKey];
-                    }
+                obj.traverse(c => {
+                    if (c instanceof THREE.Mesh) c.material = fishMaterials[materialType][key];
                 });
 
-                // Make visible and add back to scene
-                recycledFish.visible = true;
-                scene.add(recycledFish);
+                obj.visible = true;
+                scene.add(obj);
 
-                // Add to fish list
-                fishList.push({
-                    object: recycledFish,
-                    speed: fishType.speed * (0.7 + Math.random() * 0.6),
-                    direction: new THREE.Vector3(
-                        Math.random() - 0.5,
-                        Math.random() - 0.5,
-                        Math.random() - 0.5
-                    ).normalize(),
-                    type: fishType.name,
-                    size: fishType.sizeCategory,
-                    exactSize: exactSize
-                });
-
-                return; // Done with recycled fish
+                pushFish(
+                    obj,
+                    exactSize,
+                    fishType.speed * (0.7 + Math.random() * 0.6),
+                    new THREE.Vector3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).normalize()
+                );
+                return;
             }
 
-            // 2. If no recycled fish available, load a new one (existing code but with reduced complexity)
-            let exactSize: number;
-            switch (fishType.sizeCategory) {
-                case "small": exactSize = 0.5 + Math.random() * 0.3; break;
-                case "medium-small": exactSize = 1.0 + Math.random() * 0.3; break;
-                case "medium": exactSize = 1.5 + Math.random() * 0.3; break;
-                case "large": exactSize = 2.0 + Math.random() * 0.5; break;
-                case "extra-large": exactSize = 2.8 + Math.random() * 1.0; break;
-                default: exactSize = 1.0;
-            }
-
-            // Use a simplified loading approach for new fish
+            /* ---------- LOAD NEW ---------- */
             gltfLoader.load(
                 fishType.modelPath,
-                (gltf) => {
-                    // 1) grab your fish model
-                    const object = gltf.scene;
+                gltf => {
+                    const obj = gltf.scene;
 
-                    // 2) scale
-                    object.scale.set(
+                    obj.scale.set(
                         fishType.scale.x * exactSize,
                         fishType.scale.y * exactSize,
                         fishType.scale.z * exactSize
                     );
 
-                    // 3) position logic (unchanged)
+                    /* position logic (unchanged) */
                     let x = Math.random() * 80 - 40;
                     let y = Math.random() * 20 - 10;
                     let z = Math.random() * 80 - 40;
                     if (playerFish) {
                         tempPosition.set(x, y, z);
-                        const distance = tempPosition.distanceTo(playerFish.position);
-                        if (distance < 10) {
+                        if (tempPosition.distanceTo(playerFish.position) < 10) {
                             const dir = tempPosition.sub(playerFish.position).normalize();
                             tempPosition.addScaledVector(dir, 10);
-                            x = tempPosition.x; y = tempPosition.y; z = tempPosition.z;
+                            ({ x, y, z } = tempPosition);
                         }
                     }
-                    object.position.set(x, y, z);
-                    object.rotation.set(Math.PI / 2, Math.random() * Math.PI * 2, 0);
+                    obj.position.set(x, y, z);
+                    obj.rotation.set(Math.PI / 2, Math.random() * Math.PI * 2, 0);
 
-                    // 4) material logic (unchanged)
-                    const materialType = exactSize < currentPlayerSize ? 'edible' : 'dangerous';
-                    const hue = materialType === 'edible'
-                        ? 0.3 + Math.random() * 0.3
-                        : Math.random() * 0.15;
+                    /* material logic (unchanged) */
+                    const materialType = exactSize < currentPlayerSize ? "edible" : "dangerous";
+                    const hue =
+                        materialType === "edible"
+                            ? 0.3 + Math.random() * 0.3
+                            : Math.random() * 0.15;
                     const key = `${materialType}_${Math.floor(hue * 10)}`;
                     if (!fishMaterials[materialType][key]) {
                         if (Object.keys(fishMaterials[materialType]).length >= 5) {
@@ -625,33 +627,24 @@ export default function FishFrenzy({ height = "h-96" }: FishFrenzyProps) {
                             });
                         }
                     }
-                    object.traverse(child => {
-                        if (child instanceof THREE.Mesh) {
-                            child.material = fishMaterials[materialType][key];
-                        }
+                    obj.traverse(c => {
+                        if (c instanceof THREE.Mesh) c.material = fishMaterials[materialType][key];
                     });
 
-                    // 5) add to scene & list
-                    scene.add(object);
-                    fishList.push({
-                        object,
-                        speed: fishType.speed * (0.7 + Math.random() * 0.6),
-                        direction: new THREE.Vector3(
-                            Math.random() - 0.5,
-                            Math.random() - 0.5,
-                            Math.random() - 0.5
-                        ).normalize(),
-                        type: fishType.name,
-                        size: fishType.sizeCategory,
-                        exactSize
-                    });
+                    scene.add(obj);
+
+                    pushFish(
+                        obj,
+                        exactSize,
+                        fishType.speed * (0.7 + Math.random() * 0.6),
+                        new THREE.Vector3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).normalize()
+                    );
                 },
                 undefined,
-                (error) => {
-                    console.error('Error loading fish GLB model:', error);
-                }
+                err => console.error("Error loading fish GLB model:", err)
             );
         }
+
 
         // Adjust the spawnFish function to spawn fewer dangerous fish at start
         function spawnFish(count = 10) {
@@ -751,7 +744,9 @@ export default function FishFrenzy({ height = "h-96" }: FishFrenzyProps) {
             }
 
             // Calculate player's collision radius more efficiently
-            const playerRadius = currentPlayerSize * 0.2 * COLLISION_MULTIPLIERS["Player"];
+            const playerRadius =
+                playerBaseRadius * playerFish.scale.x *
+                (COLLISION_MULTIPLIERS["Player"] || 0.7);
             const playerPos = tempVector.copy(playerFish.position);
 
             // Only check for collisions within a reasonable distance
@@ -775,7 +770,10 @@ export default function FishFrenzy({ height = "h-96" }: FishFrenzyProps) {
                 const fishType = fishData.type;
 
                 // Calculate fish's collision radius for collision detection ONLY
-                const fishRadius = fishData.exactSize * 0.2 * (COLLISION_MULTIPLIERS[fishType] || 0.8);
+                // fish radius – REAL value:
+                const fishRadius = fishData.baseRadius
+                    * fishData.object.scale.x   // all axes are uniform
+                    * (COLLISION_MULTIPLIERS[fishType] || 0.8);
 
                 // Optional debug visualization
                 // debugVisualizeSphere(fishPos, fishRadius, 0xff0000);
