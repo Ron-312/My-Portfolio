@@ -34,6 +34,11 @@ interface FullscreenDocument extends Document {
     msExitFullscreen?: () => Promise<void>;
 }
 
+// Add this interface before your component
+interface WindowWithMSStream extends Window {
+    MSStream?: unknown;
+}
+
 const fishTypes = [
     {
         name: "Squid",
@@ -102,7 +107,7 @@ export default function FishFrenzy({ height = "h-96" }: FishFrenzyProps) {
     };
     const tempPosition = new THREE.Vector3();
 
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !((window as WindowWithMSStream).MSStream);
 
     // Add this function to handle fullscreen toggle
     const toggleFullscreen = () => {
