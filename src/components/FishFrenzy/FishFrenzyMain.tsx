@@ -102,13 +102,21 @@ export default function FishFrenzy({ height = "h-96" }: FishFrenzyProps) {
     };
     const tempPosition = new THREE.Vector3();
 
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+
     // Add this function to handle fullscreen toggle
     const toggleFullscreen = () => {
         const gameElement = gameRef.current as FullscreenElement | null;
         if (!gameElement) return;
 
+        // — iOS fallback: just toggle state, since requestFullscreen is ignored —
+        if (isIOS) {
+            setIsFullscreen(prev => !prev);
+            return;
+        }
+
+        // — non-iOS: use the native Fullscreen API —
         if (!isFullscreen) {
-            // Enter fullscreen
             if (gameElement.requestFullscreen) {
                 gameElement.requestFullscreen();
             } else if (gameElement.mozRequestFullScreen) {
@@ -120,7 +128,6 @@ export default function FishFrenzy({ height = "h-96" }: FishFrenzyProps) {
             }
             setIsFullscreen(true);
         } else {
-            // Exit fullscreen
             const doc = document as FullscreenDocument;
             if (doc.exitFullscreen) {
                 doc.exitFullscreen();
@@ -920,112 +927,101 @@ export default function FishFrenzy({ height = "h-96" }: FishFrenzyProps) {
             });
         }
 
+        // put this just once, outside updateFish(), next to yaw/pitch
+        const BASE_Q = new THREE.Quaternion()
+            .setFromAxisAngle(new THREE.Vector3(1, 0, 0), Math.PI / 2);
+
+        let yaw = 0;     // around Z (+ = turn left, − = turn right)
+        let pitch = 0;   // around X (+ = nose up,  − = nose down)
+
         function updateFish() {
-            // rebuild every 10 logic ticks
+            // ───────────────── GRID UPDATE ─────────────────
             gridFrame++;
-            if (gridFrame % 10 === 0) {
-                rebuildGrid(CELL_SIZE);
-            }
-            // ——— PLAYER ROTATION (Yaw / Pitch) ———
-            if (!playerFish.rotation.order) playerFish.rotation.order = 'XYZ';
+            if (gridFrame % 10 === 0) rebuildGrid(CELL_SIZE);
 
-            if (keysPressed.current['d']) {
-                const q = new THREE.Quaternion().setFromAxisAngle(
-                    new THREE.Vector3(0, 0, 1),
-                    rotationAcceleration
-                );
-                playerFish.quaternion.multiply(q);
-            } else if (keysPressed.current['a']) {
-                const q = new THREE.Quaternion().setFromAxisAngle(
-                    new THREE.Vector3(0, 0, 1),
-                    -rotationAcceleration
-                );
-                playerFish.quaternion.multiply(q);
-            }
+            // ───────────────── INPUT → YAW/PITCH ─────────────────
+            const step = rotationAcceleration;
+            if (keysPressed.current['d']) yaw += step;
+            if (keysPressed.current['a']) yaw -= step;
+            if (keysPressed.current['w']) pitch += step;
+            if (keysPressed.current['s']) pitch -= step;
 
-            if (keysPressed.current['w']) {
-                const q = new THREE.Quaternion().setFromAxisAngle(
-                    new THREE.Vector3(1, 0, 0),
-                    rotationAcceleration
-                );
-                playerFish.quaternion.multiply(q);
-            } else if (keysPressed.current['s']) {
-                const q = new THREE.Quaternion().setFromAxisAngle(
-                    new THREE.Vector3(1, 0, 0),
-                    -rotationAcceleration
-                );
-                playerFish.quaternion.multiply(q);
-            }
+            // clamp pitch a bit so you can always look forward/down
+            const maxPitch = Math.PI / 2 - 0.05;
+            pitch = Math.max(-maxPitch, Math.min(maxPitch, pitch));
 
-            // ——— PLAYER FORWARD MOTION ———
+            // ───────────────── BUILD CLEAN ORIENTATION ─────────────────
+            //   1. start with your fixed +90° X rotation (BASE_Q)
+            //   2. yaw around Z
+            //   3. pitch around X   (order Z → X so there’s never roll)
+            const qYaw = new THREE.Quaternion()
+                .setFromAxisAngle(new THREE.Vector3(0, 0, 1), yaw);
+            const qPitch = new THREE.Quaternion()
+                .setFromAxisAngle(new THREE.Vector3(1, 0, 0), pitch);
+
+            playerFish.quaternion.copy(BASE_Q)      // reset to baseline
+                .multiply(qYaw)       // yaw
+                .multiply(qPitch);    // then pitch
+
+            // ───────────────── MOVE FORWARD ─────────────────
             const isSprint = keysPressed.current['shift'];
-            const fwdSpeed = isSprint ? playerSpeed * 1.3 : playerSpeed;
+            const speed = isSprint ? playerSpeed * 1.3 : playerSpeed;
+
             const forward = new THREE.Vector3(0, -1, 0)
                 .applyQuaternion(playerFish.quaternion)
                 .normalize();
-            playerFish.position.add(forward.clone().multiplyScalar(fwdSpeed));
+            playerFish.position.addScaledVector(forward, speed);
 
-            // ——— CLAMP AGAINST OCEAN FLOOR ———
-            // Prevent the player from sinking below the coral floor at y = -9
-            const minY = -9;
-            if (playerFish.position.y < minY) {
-                playerFish.position.y = minY;
-            }
+            // floor clamp
+            if (playerFish.position.y < -9) playerFish.position.y = -9;
 
-            // ——— CAMERA FOLLOW (third-person) ———
+            // ───────────────── CAMERA FOLLOW ─────────────────
             const camDist = 4 + currentPlayerSize;
             const camHeight = 2.5 + currentPlayerSize * 0.4;
-            const backward = forward.clone().negate();
-            const idealCamPos = playerFish.position.clone()
-                .add(backward.multiplyScalar(camDist))
-                .add(new THREE.Vector3(0.7, camHeight, 0));
-            camera.position.lerp(idealCamPos, 0.05);
-            const lookTarget = playerFish.position.clone()
-                .add(forward.clone().multiplyScalar(3 + currentPlayerSize));
-            camera.lookAt(lookTarget);
+            camera.position.lerp(
+                playerFish.position.clone()
+                    .add(forward.clone().negate().multiplyScalar(camDist))
+                    .add(new THREE.Vector3(0.7, camHeight, 0)),
+                0.05
+            );
+            camera.lookAt(
+                playerFish.position.clone()
+                    .add(forward.clone().multiplyScalar(3 + currentPlayerSize))
+            );
 
-            // ——— ENEMY FISH MOVEMENT ———
+            // ───────────────── ENEMY FISH, COLLISIONS, SPAWN, ETC. ─────────────────
             const time = Date.now() * 0.001;
             for (let i = 0; i < fishList.length; i++) {
-                const fish = fishList[i];
-                const obj = fish.object;
-                // base movement
-                const move = fish.direction.clone().multiplyScalar(fish.speed);
-                // oscillation for natural swim
+                const f = fishList[i];
+                const move = f.direction.clone().multiplyScalar(f.speed);
                 move.x += Math.sin(time + i) * 0.05;
                 move.y += Math.cos(time + i) * 0.025;
-                obj.position.add(move);
+                f.object.position.add(move);
 
-                // bounds bounce (asymmetric Y)
-                if (Math.abs(obj.position.x) > 30) {
-                    fish.direction.x *= -1;
-                    obj.position.x = Math.sign(obj.position.x) * 30;
+                // walls
+                if (Math.abs(f.object.position.x) > 30) {
+                    f.direction.x *= -1; f.object.position.x = Math.sign(f.object.position.x) * 30;
                 }
-                if (obj.position.y > 10) {
-                    fish.direction.y *= -1; obj.position.y = 10;
-                } else if (obj.position.y < -9) {
-                    fish.direction.y = Math.abs(fish.direction.y); obj.position.y = -9;
+                if (f.object.position.y > 10) {
+                    f.direction.y *= -1; f.object.position.y = 10;
+                } else if (f.object.position.y < -9) {
+                    f.direction.y = Math.abs(f.direction.y); f.object.position.y = -9;
                 }
-                if (Math.abs(obj.position.z) > 30) {
-                    fish.direction.z *= -1;
-                    obj.position.z = Math.sign(obj.position.z) * 30;
+                if (Math.abs(f.object.position.z) > 30) {
+                    f.direction.z *= -1; f.object.position.z = Math.sign(f.object.position.z) * 30;
                 }
 
-                // face movement direction + slight roll
-                const target = obj.position.clone().add(fish.direction);
-                obj.lookAt(target);
-                obj.rotation.z = Math.sin(time + i) * 0.1;
+                // face swim direction
+                f.object.lookAt(f.object.position.clone().add(f.direction));
+                f.object.rotation.z = Math.sin(time + i) * 0.1;
             }
 
-            // ——— COLLISIONS ———
             checkCollision();
-
-            // ——— SPAWN NEW FISH OCCASIONALLY ———
             if (Date.now() % 2000 < 20) spawnFish(3);
-
-            // ——— PARTICLE MOTION ———
             particles.rotation.y += 0.0001;
         }
+
+
         function animate() {
             if (isGameOver) return;
             animationFrameId = requestAnimationFrame(animate);
@@ -1128,7 +1124,10 @@ export default function FishFrenzy({ height = "h-96" }: FishFrenzyProps) {
         <div className="relative w-full">
             <div
                 ref={gameRef}
-                className={`w-full ${height} bg-blue-900 rounded-lg overflow-hidden relative`}
+                className={`
+                w-full ${height} bg-blue-900 rounded-lg overflow-hidden relative
+                ${isIOS && isFullscreen ? 'fixed inset-0 w-screen h-screen z-50' : ''}
+        `}
             >
                 {/* 👇 Move all UI elements INSIDE the gameRef div! */}
                 {loading && (
