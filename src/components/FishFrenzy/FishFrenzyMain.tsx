@@ -965,6 +965,13 @@ export default function FishFrenzy({ height = "h-96" }: FishFrenzyProps) {
                 .normalize();
             playerFish.position.add(forward.clone().multiplyScalar(fwdSpeed));
 
+            // ——— CLAMP AGAINST OCEAN FLOOR ———
+            // Prevent the player from sinking below the coral floor at y = -9
+            const minY = -9;
+            if (playerFish.position.y < minY) {
+                playerFish.position.y = minY;
+            }
+
             // ——— CAMERA FOLLOW (third-person) ———
             const camDist = 4 + currentPlayerSize;
             const camHeight = 2.5 + currentPlayerSize * 0.4;
