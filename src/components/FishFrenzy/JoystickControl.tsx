@@ -7,206 +7,198 @@ interface JoystickProps {
   loading: boolean;
 }
 
-export default function JoystickControl({ keysPressed, gameStarted, gameOver, loading }: JoystickProps) {
+export default function JoystickControl({
+  keysPressed,
+  gameStarted,
+  gameOver,
+  loading
+}: JoystickProps) {
+  /* ─────────── local state / refs ─────────── */
   const [joystickActive, setJoystickActive] = useState(false);
   const [joystickPosition, setJoystickPosition] = useState({ x: 0, y: 0 });
   const [isMobileDevice, setIsMobileDevice] = useState(false);
-  const [debugInfo, setDebugInfo] = useState("");
-  
-  // Using refs, not state, for tracking touch info
+  const [debugInfo, setDebugInfo] = useState('');
+  const [sprintDown, setSprintDown] = useState(false);
+  const sprintRef = useRef(false);
+
   const joystickAreaRef = useRef<HTMLDivElement>(null);
   const touchStartRef = useRef({ x: 0, y: 0 });
   const touchIdRef = useRef<number | null>(null);
-  
-  // Use a ref for tracking active state to avoid closure issues
   const isActiveRef = useRef(false);
-  
-  // Mobile detection
+
+  /* ─────────── detect mobile once ─────────── */
   useEffect(() => {
     const ua = navigator.userAgent.toLowerCase();
-    const isMobile = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini|mobile/i.test(ua);
-    console.log("Mobile device detection:", isMobile, ua);
-    setIsMobileDevice(isMobile); 
+    setIsMobileDevice(
+      /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini|mobile/i.test(
+        ua
+      )
+    );
   }, []);
-  
-  // SINGLE event handling effect - no other touch effects
+
+  /* ─────────── reflect sprintDown → keysPressed ─────────── */
+  useEffect(() => {
+    keysPressed.current['shift'] = sprintDown;
+    sprintRef.current = sprintDown;
+  }, [sprintDown, keysPressed]);
+
+  /* ─────────── main joystick listeners ─────────── */
   useEffect(() => {
     if (!gameStarted) return;
-    
-    // Prevent page scrolling while touching joystick
+
     const preventScroll = (e: TouchEvent) => {
-      if (isActiveRef.current) {
-        e.preventDefault();
-      }
+      if (isActiveRef.current) e.preventDefault();
     };
-    
-    // Set up touch start handler
+
+    /* touch start */
     const handleTouchStart = (e: TouchEvent) => {
       if (e.touches.length === 0) return;
-      
       const touch = e.touches[0];
       const rect = joystickAreaRef.current?.getBoundingClientRect();
-      
       if (!rect) return;
-      
-      // Only handle touches within our joystick area
+
       if (
-        touch.clientX >= rect.left && 
-        touch.clientX <= rect.right && 
-        touch.clientY >= rect.top && 
+        touch.clientX >= rect.left &&
+        touch.clientX <= rect.right &&
+        touch.clientY >= rect.top &&
         touch.clientY <= rect.bottom
       ) {
         touchIdRef.current = touch.identifier;
         touchStartRef.current = { x: touch.clientX, y: touch.clientY };
-        
-        // Update both the state and ref (ref for immediate access)
         setJoystickActive(true);
         isActiveRef.current = true;
-        
-        setDebugInfo("Touch started in joystick area");
+        setDebugInfo('Touch started in joystick area');
         e.preventDefault();
       }
     };
-    
-    // Handle touch move
+
+    /* touch move */
     const handleTouchMove = (e: TouchEvent) => {
       if (!isActiveRef.current || touchIdRef.current === null) return;
-      
-      // Find our active touch
-      let activeTouch = null;
+
+      let activeTouch: Touch | null = null;
       for (let i = 0; i < e.touches.length; i++) {
         if (e.touches[i].identifier === touchIdRef.current) {
           activeTouch = e.touches[i];
           break;
         }
       }
-      
       if (!activeTouch) return;
-      
-      // Calculate delta
+
       const deltaX = activeTouch.clientX - touchStartRef.current.x;
       const deltaY = activeTouch.clientY - touchStartRef.current.y;
-      
-      // Limit distance
-      const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+      const distance = Math.hypot(deltaX, deltaY);
       const maxRadius = 50;
-      const limitedDistance = Math.min(distance, maxRadius);
-      
-      // Get angle and normalized position
+      const limitedDist = Math.min(distance, maxRadius);
       const angle = Math.atan2(deltaY, deltaX);
-      const normalizedX = Math.cos(angle) * limitedDistance / maxRadius;
-      const normalizedY = Math.sin(angle) * limitedDistance / maxRadius;
-      
-      // Set joystick position
+      const normX = Math.cos(angle) * limitedDist / maxRadius;
+      const normY = Math.sin(angle) * limitedDist / maxRadius;
+
       setJoystickPosition({
-        x: Math.cos(angle) * limitedDistance,
-        y: Math.sin(angle) * limitedDistance
+        x: Math.cos(angle) * limitedDist,
+        y: Math.sin(angle) * limitedDist
       });
-      
-      // Update movement keys
-      const deadzone = 0.2;
-      keysPressed.current['w'] = normalizedY < -deadzone;
-      keysPressed.current['a'] = normalizedX < -deadzone;
-      keysPressed.current['s'] = normalizedY > deadzone;
-      keysPressed.current['d'] = normalizedX > deadzone;
-      keysPressed.current['shift'] = distance > (maxRadius * 0.8);
-      
-      setDebugInfo(`X: ${normalizedX.toFixed(2)}, Y: ${normalizedY.toFixed(2)}`);
+
+      const dead = 0.2;
+      keysPressed.current['w'] = normY < -dead;
+      keysPressed.current['a'] = normX < -dead;
+      keysPressed.current['s'] = normY > dead;
+      keysPressed.current['d'] = normX > dead;
+
+      setDebugInfo(`X:${normX.toFixed(2)} Y:${normY.toFixed(2)}`);
       e.preventDefault();
     };
-    
-    // Handle touch end
+
+    /* touch end / cancel */
     const handleTouchEnd = (e: TouchEvent) => {
-      // Check if our tracked touch has ended
-      let touchFound = false;
-      
+      let stillActive = false;
       for (let i = 0; i < e.touches.length; i++) {
         if (e.touches[i].identifier === touchIdRef.current) {
-          touchFound = true;
+          stillActive = true;
           break;
         }
       }
-      
-      if (!touchFound) {
-        // Reset everything
+      if (!stillActive) {
         touchIdRef.current = null;
         setJoystickActive(false);
         isActiveRef.current = false;
         setJoystickPosition({ x: 0, y: 0 });
-        
-        // Reset keys
         keysPressed.current['w'] = false;
         keysPressed.current['a'] = false;
         keysPressed.current['s'] = false;
         keysPressed.current['d'] = false;
-        keysPressed.current['shift'] = false;
-        
-        setDebugInfo("Touch ended");
+        setDebugInfo('Touch ended');
       }
     };
-    
-    // Add all event listeners to the document
+
     document.addEventListener('touchstart', handleTouchStart, { passive: false });
     document.addEventListener('touchmove', handleTouchMove, { passive: false });
     document.addEventListener('touchend', handleTouchEnd);
     document.addEventListener('touchcancel', handleTouchEnd);
     document.addEventListener('touchmove', preventScroll, { passive: false });
-    
+
     return () => {
-      // Clean up ALL listeners
       document.removeEventListener('touchstart', handleTouchStart);
       document.removeEventListener('touchmove', handleTouchMove);
       document.removeEventListener('touchend', handleTouchEnd);
       document.removeEventListener('touchcancel', handleTouchEnd);
       document.removeEventListener('touchmove', preventScroll);
-      
-      // Reset key state on unmount
-      keysPressed.current['w'] = false;
-      keysPressed.current['a'] = false;
-      keysPressed.current['s'] = false;
-      keysPressed.current['d'] = false;
-      keysPressed.current['shift'] = false;
+      // clear keys
+      ['w', 'a', 's', 'd', 'shift'].forEach(k => (keysPressed.current[k] = false));
     };
   }, [gameStarted, keysPressed]);
-  
-  // Don't render if not a mobile device or game isn't running
-  if (!isMobileDevice || !gameStarted || gameOver || loading) {
-    return null;
-  }
-  
+
+  /* ─────────── render guards ─────────── */
+  if (!isMobileDevice || !gameStarted || gameOver || loading) return null;
+
+  /* ─────────── UI ─────────── */
   return (
     <>
-      {/* Fixed debug info */}
+      {/* debug read‑out */}
       <div className="fixed top-4 left-4 z-[600] bg-black/70 text-white text-xs px-2 py-1 rounded">
         {debugInfo}
       </div>
-      
-      {/* Joystick touch area */}
+
+      {/* joystick pad (left‑bottom) */}
       <div
         ref={joystickAreaRef}
         className="fixed bottom-0 left-0 w-1/2 h-1/3 z-[500] flex items-center justify-center"
       >
-        {/* Visible joystick - USE joystickActive HERE: */}
-        <div className={`w-40 h-40 rounded-full bg-black/70 border-4 ${joystickActive ? 'border-blue-400' : 'border-white/60'} relative`}>
+        <div
+          className={`w-40 h-40 rounded-full bg-black/70 border-4
+            ${joystickActive ? 'border-blue-400' : 'border-white/60'} relative`}
+        >
           <div
-            className={`w-24 h-24 rounded-full ${joystickActive ? 'bg-blue-600' : 'bg-blue-500'} absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2`}
+            className={`w-24 h-24 rounded-full
+              ${joystickActive ? 'bg-blue-600' : 'bg-blue-500'}
+              absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2`}
             style={{
               marginLeft: joystickPosition.x,
               marginTop: joystickPosition.y,
-              boxShadow: `0 0 15px ${joystickActive ? 'rgba(66,153,225,0.8)' : 'rgba(0,0,0,0.8)'}`
+              boxShadow: `0 0 15px ${joystickActive ? 'rgba(66,153,225,0.8)' : 'rgba(0,0,0,0.8)'
+                }`
             }}
           />
         </div>
       </div>
-      
-      {/* Sprint indicator */}
+
+      {/* sprint pad (right‑bottom) */}
       <div
-        className={`fixed bottom-12 right-12 w-16 h-16 rounded-full flex items-center justify-center z-[500] 
-          ${keysPressed.current['shift'] ? 'bg-blue-500' : 'bg-black/80 border-2 border-white/50'}`}
+        className="fixed bottom-0 right-0 w-1/2 h-1/3 z-[500] flex items-center justify-center"
+        onTouchStart={e => { e.preventDefault(); setSprintDown(true); }}
+        onTouchEnd={() => setSprintDown(false)}
+        onTouchCancel={() => setSprintDown(false)}
       >
-        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-        </svg>
+        <div
+          className={`w-28 h-28 rounded-full flex items-center justify-center
+            ${sprintDown ? 'bg-blue-600' : 'bg-black/70 border-4 border-white/60'}`}
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" fill="none"
+            viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round"
+              d="M13 10V3L4 14h7v7l9-11h-7z" />
+          </svg>
+        </div>
       </div>
     </>
   );
