@@ -8,13 +8,13 @@ export default function Experience() {
                     {/* Experience Item 1 */}
                     <div className="mb-12 relative pl-8 border-l-2 border-blue-500">
                         <div className="absolute -left-2 top-0 w-4 h-4 bg-blue-500 rounded-full"></div>
-                        <h3 className="text-xl font-bold">Lead Technical Engineer</h3>
+                        <h3 className="text-xl font-bold">Lead Software Engineer</h3>
                         <p className="text-blue-600 font-medium">Reflectiz | Feb 2023 - Present</p>
                         <ul className="mt-4 space-y-2 text-gray-600 list-disc pl-5">
-                            <li>Led a team to deploy custom cybersecurity solutions for websites, ensuring seamless client integration.</li>
-                            <li>Designed and implemented a Data Warehouse and Analytics Dashboard to track user engagement and system interactions.</li>
-                            <li>Developed an Automated App Description & Categorization Tool using LLMs and web scraping.</li>
-                            <li>Enhanced product capabilities by leading TypeScript development for automated website navigation solutions.</li>
+                            <li>Onboarding lead for new clients, supporting the company's expansion from ~10 pilots to 100+ enterprise customers and multi-million-dollar ARR.</li>
+                            <li>Designed a real-time ingest pipeline feeding an analytics warehouse (handles thousands of events per day) to track user engagement and system interactions.</li>
+                            <li>Developed a Scripts Description & Categorization Tool using LLM and web scraping to analyze domain scripts, extract descriptions, and classify them by behavior, raising uncategorized-scripts coverage from &lt; 10% to ~ 85%.</li>
+                            <li>Cut setup time from ~2 weeks to &lt; 3 days with targeted tooling and playbooks.</li>
                         </ul>
                         <p className="mt-2 text-sm font-medium">Tech: TypeScript, Python, SQL, LLMs, Web Scraping</p>
                     </div>
