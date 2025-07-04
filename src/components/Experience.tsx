@@ -11,7 +11,7 @@ export default function Experience() {
                         <h3 className="text-xl font-bold">Lead Software Engineer</h3>
                         <p className="text-blue-600 font-medium">Reflectiz | Feb 2023 - Present</p>
                         <ul className="mt-4 space-y-2 text-gray-600 list-disc pl-5">
-                            <li>Onboarding lead for new clients, supporting the company's expansion from ~10 pilots to 100+ enterprise customers and multi-million-dollar ARR.</li>
+                            <li>Onboarding lead for new clients, supporting the company&apos;s expansion from ~10 pilots to 100+ enterprise customers and multi-million-dollar ARR.</li>
                             <li>Designed a real-time ingest pipeline feeding an analytics warehouse (handles thousands of events per day) to track user engagement and system interactions.</li>
                             <li>Developed a Scripts Description & Categorization Tool using LLM and web scraping to analyze domain scripts, extract descriptions, and classify them by behavior, raising uncategorized-scripts coverage from &lt; 10% to ~ 85%.</li>
                             <li>Cut setup time from ~2 weeks to &lt; 3 days with targeted tooling and playbooks.</li>
