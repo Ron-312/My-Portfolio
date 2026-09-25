@@ -17,6 +17,21 @@ function bubbleTexture() {
     return new THREE.CanvasTexture(canvas);
 }
 
+/** A soft glowing dot for sparkles and eat bursts. */
+function glowTexture() {
+    const size = 64;
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = size;
+    const ctx = canvas.getContext('2d')!;
+    const g = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+    g.addColorStop(0, 'rgba(255,255,255,1)');
+    g.addColorStop(0.3, 'rgba(255,255,255,0.8)');
+    g.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, size, size);
+    return new THREE.CanvasTexture(canvas);
+}
+
 /** Ambient bubbles that drift up with a little wobble and wrap back to the floor. */
 export class Bubbles {
     readonly points: THREE.Points;
@@ -80,12 +95,19 @@ export class Bursts {
         age: number;
     }[] = [];
     private next = 0;
+    private readonly texture = glowTexture();
 
     constructor(poolSize = 8) {
         for (let b = 0; b < poolSize; b++) {
             const geometry = new THREE.BufferGeometry();
             geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(BURST_PARTICLES * 3), 3));
-            const material = new THREE.PointsMaterial({ size: 0.12, transparent: true, depthWrite: false });
+            const material = new THREE.PointsMaterial({
+                size: 0.12,
+                map: this.texture,
+                transparent: true,
+                depthWrite: false,
+                blending: THREE.AdditiveBlending,
+            });
             const points = new THREE.Points(geometry, material);
             points.visible = false;
             points.frustumCulled = false;
@@ -106,7 +128,7 @@ export class Bursts {
         }
         burst.points.geometry.attributes.position.needsUpdate = true;
         burst.material.color.set(color);
-        burst.material.size = 0.08 + spread * 0.03;
+        burst.material.size = 0.12 + spread * 0.05;
         burst.age = 0;
         burst.points.visible = true;
     }
@@ -132,5 +154,6 @@ export class Bursts {
             burst.points.geometry.dispose();
             burst.material.dispose();
         }
+        this.texture.dispose();
     }
 }

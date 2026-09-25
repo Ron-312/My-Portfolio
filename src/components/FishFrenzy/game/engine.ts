@@ -1,11 +1,12 @@
 import * as THREE from 'three';
 import {
-    CORALS, EAT_RATIO, INVULNERABLE_SECONDS, LENGTH_PER_SIZE, PLAYER, PLAYER_START_SIZE,
-    SPECIES, WORLD, growthFor, pointsFor, unlockSize, type Species, type SwimParams,
+    CORALS, EAT_RATIO, INVULNERABLE_SECONDS, LENGTH_PER_SIZE, MAX_POWER_CHARGES, PLAYER, PLAYER_START_SIZE,
+    POWER_FISH, POWER_POINTS, POWER_SPECIES, POWER_UPS, SPECIES, SPEED_BOOST, WORLD,
+    growthFor, pointsFor, unlockSize, type PowerKind, type PowerUp, type Species, type SwimParams,
 } from './config';
 import { fishGeometry, propModel } from './models';
 import { createSwimMaterial, type SwimMaterial } from './swimMaterial';
-import { PLAYER_SKIN, SPECIES_SKINS, type FishSkin } from './skins';
+import { PLAYER_SKIN, POWER_SKINS, SPECIES_SKINS, type FishSkin } from './skins';
 import { createOceanUniforms, withCaustics } from './caustics';
 import { Reef, WATER, floorHeight } from './reef';
 import { Schools } from './schools';
@@ -19,9 +20,18 @@ export interface GameInput {
     stickY: number; // -1 (down) … 1 (up)
 }
 
+/** Active power-ups: seconds of speed left, and shields / mega bites held. */
+export interface PowerState {
+    speed: number;
+    shields: number;
+    bites: number;
+}
+
 export interface GameEvents {
     onStats(score: number, size: number): void;
     onUnlock(species: Species): void;
+    onPowerUp(power: PowerUp): void;
+    onPowers(state: PowerState): void;
     onGameOver(score: number): void;
     onPauseChange(paused: boolean): void;
 }
@@ -56,6 +66,8 @@ interface Fish extends Swimmer {
     personalSpeed: number; // per-fish variation of the species speed
     age: number;
     chasing: boolean;
+    power?: PowerKind; // set on the rare sparkling power-up fish
+    life: number;      // seconds left before a power fish swims off
 }
 
 const LOGIC_STEP = 1 / 60;
@@ -74,6 +86,10 @@ function halfHeightOf(geometry: THREE.BufferGeometry) {
 }
 
 const lengthOf = (size: number) => size * LENGTH_PER_SIZE;
+const pick = <T,>(items: T[]) => items[Math.floor(Math.random() * items.length)];
+const POWER_KINDS = Object.keys(POWER_UPS) as PowerKind[];
+const POWER_COLORS = Object.fromEntries(POWER_KINDS.map(k => [k, new THREE.Color(POWER_UPS[k].color)])) as Record<PowerKind, THREE.Color>;
+const PLAYER_RIM = new THREE.Color(0xffffff);
 const wrapAngle = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
 const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
 const randomIn = (min: number, max: number) => min + Math.random() * (max - min);
@@ -100,7 +116,7 @@ export class FishFrenzyGame {
     private readonly clock = new THREE.Clock(false);
     private readonly resizeObserver: ResizeObserver;
     private readonly bubbles: Bubbles;
-    private readonly bursts = new Bursts();
+    private readonly bursts = new Bursts(28);
     private readonly disposables: { dispose(): void }[] = [];
     private readonly geometries = new Map<string, THREE.BufferGeometry>();
     private readonly ocean = createOceanUniforms();
@@ -122,6 +138,13 @@ export class FishFrenzyGame {
     private spawnCooldown = 0;
     private recycleCooldown = 0;
     private bumpCooldown = 0;
+    private powerCooldown = randomIn(6, 10);
+    private sparkleCooldown = 0;
+    private speedTime = 0;
+    private shields = 0;
+    private bites = 0;
+    private lastPowerReport = '';
+    private shieldBubble!: THREE.Mesh;
 
     private readonly targetPopulation: number;
 
@@ -170,9 +193,9 @@ export class FishFrenzyGame {
             fishGeometry(PLAYER.modelPath, PLAYER.head, PLAYER.up),
             propModel(CORALS.tree),
             propModel(CORALS.fan),
-            ...SPECIES.map(s => fishGeometry(s.modelPath, s.head, s.up)),
+            ...[...SPECIES, POWER_SPECIES].map(s => fishGeometry(s.modelPath, s.head, s.up)),
         ]);
-        SPECIES.forEach((s, i) => this.geometries.set(s.id, speciesGeos[i]));
+        [...SPECIES, POWER_SPECIES].forEach((s, i) => this.geometries.set(s.id, speciesGeos[i]));
 
         const { mobile } = this.opts;
         this.reef = new Reef({ mobile, uniforms: this.ocean, treeCoral: tree, fanCoral: fan });
@@ -198,6 +221,8 @@ export class FishFrenzyGame {
         };
         this.player.mesh.scale.setScalar(lengthOf(PLAYER_START_SIZE));
         this.scene.add(this.player.mesh);
+        this.shieldBubble = this.createShieldBubble();
+        this.scene.add(this.shieldBubble);
 
         while (this.fish.length < this.targetPopulation) this.spawnFish(0.12, true);
         this.updateCamera(1);
@@ -313,19 +338,105 @@ export class FishFrenzyGame {
         }
 
         p.cruise = PLAYER.baseSpeed + p.size * PLAYER.speedPerSize;
-        const targetSpeed = p.cruise * (sprint ? PLAYER.sprintMultiplier : 1);
+        const boosted = this.speedTime > 0 ? SPEED_BOOST.multiplier : 1;
+        const targetSpeed = p.cruise * (sprint ? PLAYER.sprintMultiplier : 1) * boosted;
         p.speed += (targetSpeed - p.speed) * (1 - Math.exp(-4 * dt));
 
         pos.addScaledVector(forwardOf(p.yaw, p.pitch, _forward), p.speed * dt);
         this.keepInBounds(pos, lengthOf(p.size));
 
-        this.poseSwimmer(p, dt, sprint ? 1.3 : 1);
+        this.poseSwimmer(p, dt, sprint || boosted > 1 ? 1.3 : 1);
+        this.updatePowers(dt);
 
         if (this.invulnerable > 0) {
             this.invulnerable -= dt;
             // Blink while protected; always end visible.
             p.mesh.visible = this.invulnerable <= 0 || Math.floor(this.time * 10) % 2 === 0;
         }
+    }
+
+    /** Ticks power-up timers and shows them on the player: glow, sparkle trail, shield bubble. */
+    private updatePowers(dt: number) {
+        const p = this.player;
+        this.speedTime = Math.max(0, this.speedTime - dt);
+
+        const skin = p.mesh.material.userData.skin;
+        const pulse = 0.5 + 0.5 * Math.sin(this.time * 8);
+        if (this.bites > 0) {
+            skin.uRimColor.value.copy(POWER_COLORS.bite);
+            skin.uRimStrength.value = 1.2 + pulse;
+        } else if (this.speedTime > 0) {
+            skin.uRimColor.value.copy(POWER_COLORS.speed);
+            skin.uRimStrength.value = 1 + pulse * 0.5;
+        } else {
+            skin.uRimColor.value.copy(PLAYER_RIM);
+            skin.uRimStrength.value = 0.2;
+        }
+
+        this.sparkleCooldown -= dt;
+        if (this.speedTime > 0 && this.sparkleCooldown <= 0) {
+            this.sparkleCooldown = 0.12;
+            _trail.copy(p.mesh.position).addScaledVector(forwardOf(p.yaw, p.pitch, _fishForward), -lengthOf(p.size) * 0.5);
+            this.bursts.spawn(_trail, POWER_UPS.speed.color, 0.7);
+        }
+
+        const bubble = this.shieldBubble;
+        bubble.visible = this.shields > 0;
+        bubble.position.copy(p.mesh.position);
+        bubble.scale.setScalar(lengthOf(p.size) * (0.72 + 0.03 * Math.sin(this.time * 3)));
+
+        this.reportPowers();
+    }
+
+    private reportPowers() {
+        const state: PowerState = { speed: Math.ceil(this.speedTime), shields: this.shields, bites: this.bites };
+        const key = `${state.speed}|${state.shields}|${state.bites}`;
+        if (key === this.lastPowerReport) return;
+        this.lastPowerReport = key;
+        this.opts.events.onPowers(state);
+    }
+
+    private grantPower(kind: PowerKind) {
+        if (kind === 'speed') this.speedTime = SPEED_BOOST.seconds;
+        if (kind === 'shield') this.shields = Math.min(this.shields + 1, MAX_POWER_CHARGES);
+        if (kind === 'bite') this.bites = Math.min(this.bites + 1, MAX_POWER_CHARGES);
+        this.opts.sfx.powerUp();
+        this.opts.events.onPowerUp(POWER_UPS[kind]);
+        this.reportPowers();
+    }
+
+    /** A soft iridescent bubble around the player while a shield is held. */
+    private createShieldBubble() {
+        const material = new THREE.ShaderMaterial({
+            transparent: true,
+            depthWrite: false,
+            blending: THREE.AdditiveBlending,
+            uniforms: { uTime: this.ocean.uTime },
+            vertexShader: /* glsl */`
+                varying vec3 vNormal;
+                varying vec3 vView;
+                void main() {
+                    vec4 mv = modelViewMatrix * vec4(position, 1.0);
+                    vNormal = normalize(normalMatrix * normal);
+                    vView = normalize(-mv.xyz);
+                    gl_Position = projectionMatrix * mv;
+                }`,
+            fragmentShader: /* glsl */`
+                uniform float uTime;
+                varying vec3 vNormal;
+                varying vec3 vView;
+                void main() {
+                    float edge = pow(1.0 - abs(dot(vNormal, vView)), 2.5);
+                    vec3 tint = 0.5 + 0.5 * cos(uTime * 1.5 + vNormal.yxz * 3.0 + vec3(0.0, 2.0, 4.0));
+                    gl_FragColor = vec4(mix(vec3(0.9), tint, 0.5) * (edge * 0.9 + 0.04), 1.0);
+                }`,
+        });
+        const geometry = new THREE.SphereGeometry(1, 32, 16);
+        this.disposables.push(material, geometry);
+        const bubble = new THREE.Mesh(geometry, material);
+        bubble.visible = false;
+        bubble.renderOrder = 3;
+        return bubble;
     }
 
     /** Applies heading, banking and swim-shader animation to a fish mesh. */
@@ -365,14 +476,16 @@ export class FishFrenzyGame {
         const pos = f.mesh.position;
         const length = lengthOf(f.size);
         f.age += dt;
-        f.category = this.categoryOf(f.size);
+        f.category = f.power ? 'edible' : this.categoryOf(f.size);
+        if (f.power) f.life -= dt;
 
         const toPlayer = _toPlayer.subVectors(this.player.mesh.position, pos);
         const distance = toPlayer.length();
         const playerLength = lengthOf(this.player.size);
         const canChase = this.alive && this.invulnerable <= 0;
         f.chasing = canChase && f.category === 'danger' && distance < 12 + length;
-        const fleeing = this.alive && f.category === 'edible' && distance < 6 + playerLength * 1.5;
+        const fleeRadius = f.power ? POWER_FISH.fleeRadius + playerLength : 6 + playerLength * 1.5;
+        const fleeing = this.alive && f.category === 'edible' && distance < fleeRadius;
 
         let targetSpeed = f.personalSpeed;
         let turnRate = 0.9;
@@ -385,8 +498,8 @@ export class FishFrenzyGame {
         } else if (fleeing) {
             f.targetYaw = Math.atan2(-toPlayer.x, -toPlayer.z);
             f.targetPitch = clamp(-Math.asin(toPlayer.y / Math.max(distance, 0.001)), -0.4, 0.4);
-            targetSpeed = f.personalSpeed * 1.7;
-            turnRate = 2;
+            targetSpeed = f.power ? POWER_FISH.fleeSpeed : f.personalSpeed * 1.7;
+            turnRate = f.power ? 2.6 : 2;
         } else {
             f.wanderTimer -= dt;
             if (f.wanderTimer <= 0) {
@@ -415,13 +528,25 @@ export class FishFrenzyGame {
 
         // Grow in on spawn instead of popping into view.
         const grow = Math.min(f.age / 0.8, 1);
-        f.mesh.scale.setScalar(length * (1 - (1 - grow) ** 3));
+        const fade = f.power ? clamp(f.life, 0, 1) : 1; // power fish shrink away when their time is up
+        f.mesh.scale.setScalar(length * (1 - (1 - grow) ** 3) * fade);
 
         this.poseSwimmer(f, dt);
         this.tintFish(f, dt);
     }
 
     private tintFish(f: Fish, dt: number) {
+        if (f.power) {
+            // Power fish shimmer in their colour and leave a sparkle trail.
+            const color = POWER_COLORS[f.power];
+            const pulse = 0.5 + 0.5 * Math.sin(this.time * 9 + f.personalSpeed * 10);
+            const skin = f.mesh.material.userData.skin;
+            skin.uRimColor.value.copy(color);
+            skin.uRimStrength.value = 1.4 + pulse;
+            f.mesh.material.emissive.copy(color).multiplyScalar(0.25 + 0.25 * pulse);
+            if (Math.random() < dt * 5) this.bursts.spawn(f.mesh.position, POWER_UPS[f.power].color, 0.5);
+            return;
+        }
         const rim = CATEGORY_RIM[f.category];
         const skin = f.mesh.material.userData.skin;
         const blend = 1 - Math.exp(-5 * dt);
@@ -463,21 +588,33 @@ export class FishFrenzyGame {
             if (f.category === 'edible') {
                 this.eat(i);
             } else if (f.category === 'danger') {
-                if (this.invulnerable <= 0) return this.die();
+                if (this.bites > 0) {
+                    this.bites--;
+                    this.eat(i, true);
+                } else if (this.invulnerable > 0) {
+                    continue;
+                } else if (this.shields > 0) {
+                    this.blockWithShield(f);
+                } else {
+                    return this.die();
+                }
             } else {
                 this.bump(f);
             }
         }
     }
 
-    private eat(index: number) {
+    private eat(index: number, mega = false) {
         const f = this.fish[index];
         const p = this.player;
-        this.bursts.spawn(f.mesh.position, CATEGORY_COLORS.edible, 2 + lengthOf(f.size));
-        this.opts.sfx.eat(f.size / p.size);
+        const color = f.power ? POWER_UPS[f.power].color : mega ? POWER_UPS.bite.color : CATEGORY_COLORS.edible;
+        this.bursts.spawn(f.mesh.position, color, 2 + lengthOf(f.size) * (mega ? 1.5 : 1));
+        if (f.power) this.grantPower(f.power);
+        else if (mega) this.opts.sfx.megaBite();
+        else this.opts.sfx.eat(f.size / p.size);
         this.removeFish(index);
 
-        this.score += pointsFor(p.size, f.size);
+        this.score += pointsFor(p.size, f.size) + (f.power ? POWER_POINTS : 0);
         p.size += growthFor(p.size, f.size);
         p.mesh.scale.setScalar(lengthOf(p.size));
         this.opts.events.onStats(this.score, p.size);
@@ -488,6 +625,18 @@ export class FishFrenzyGame {
             this.opts.sfx.speciesUnlocked();
             this.opts.events.onUnlock(SPECIES[unlocked - 1]);
         }
+    }
+
+    /** The shield pops instead of you: bounce apart and get a moment of safety. */
+    private blockWithShield(f: Fish) {
+        this.shields--;
+        this.invulnerable = 1.5;
+        const away = _toPlayer.subVectors(this.player.mesh.position, f.mesh.position).normalize();
+        this.player.mesh.position.addScaledVector(away, 1.2);
+        f.mesh.position.addScaledVector(away, -1);
+        this.bursts.spawn(this.player.mesh.position, POWER_UPS.shield.color, 4);
+        this.opts.sfx.shieldBreak();
+        this.reportPowers();
     }
 
     private bump(f: Fish) {
@@ -504,6 +653,7 @@ export class FishFrenzyGame {
         this.alive = false;
         this.bursts.spawn(this.player.mesh.position, '#ff6347', 5);
         this.player.mesh.visible = false;
+        this.shieldBubble.visible = false;
         this.opts.sfx.gameOver();
         this.opts.events.onGameOver(this.score);
     }
@@ -515,16 +665,28 @@ export class FishFrenzyGame {
         this.recycleCooldown -= dt;
         this.bumpCooldown -= dt;
 
+        // Power fish whose time ran out swim off (they've shrunk to nothing by now).
+        for (let i = this.fish.length - 1; i >= 0; i--) {
+            if (this.fish[i].power && this.fish[i].life <= 0) this.removeFish(i);
+        }
+        this.powerCooldown -= dt;
+        const powerFish = this.fish.filter(f => f.power).length;
+        if (this.alive && this.powerCooldown <= 0 && powerFish < (this.opts.mobile ? 1 : 2)) {
+            this.powerCooldown = randomIn(...POWER_FISH.respawn);
+            this.spawnPowerFish();
+        }
+
         // Fish far too small to matter get quietly replaced by relevant ones, out of sight.
         if (this.recycleCooldown <= 0) {
             this.recycleCooldown = 1;
             const index = this.fish.findIndex(f =>
+                !f.power &&
                 f.size < this.player.size * 0.25 &&
                 f.mesh.position.distanceTo(this.player.mesh.position) > 25);
             if (index >= 0) this.removeFish(index);
         }
 
-        if (this.spawnCooldown <= 0 && this.fish.length < this.targetPopulation) {
+        if (this.spawnCooldown <= 0 && this.fish.length - powerFish < this.targetPopulation) {
             this.spawnCooldown = 0.3;
             const dangerFraction = this.time < 15 ? 0.2 : 0.32;
             this.spawnFish(dangerFraction);
@@ -575,19 +737,41 @@ export class FishFrenzyGame {
             if (pos.distanceTo(playerPos) > minDistance) break;
         }
 
-        const geometry = this.geometries.get(species.id)!;
-        const material = this.fishMaterial(species.swim, SPECIES_SKINS[species.id], geometry);
-        material.color.setHSL(Math.random(), randomIn(0, 0.3), randomIn(0.85, 0.95)); // individual variation
-        const category = this.categoryOf(size);
-        material.userData.skin.uRimColor.value.copy(CATEGORY_RIM[category].color);
-        material.userData.skin.uRimStrength.value = CATEGORY_RIM[category].strength;
+        const fish = this.addFish(species, pick(SPECIES_SKINS[species.id]), size, pos, initial);
+        // A light random tint so no two fish of the same morph look identical.
+        fish.mesh.material.color.setHSL(Math.random(), randomIn(0, 0.3), randomIn(0.85, 0.95));
+        const rim = CATEGORY_RIM[fish.category];
+        fish.mesh.material.userData.skin.uRimColor.value.copy(rim.color);
+        fish.mesh.material.userData.skin.uRimStrength.value = rim.strength;
+    }
 
-        const mesh = new THREE.Mesh(geometry, material);
+    private spawnPowerFish() {
+        const kind = pick(POWER_KINDS);
+        const pos = new THREE.Vector3();
+        for (let attempt = 0; attempt < 12; attempt++) {
+            pos.set(
+                randomIn(-1, 1) * (WORLD.halfWidth - 6),
+                randomIn(WORLD.floorY + 3, WORLD.surfaceY - 3),
+                randomIn(-1, 1) * (WORLD.halfWidth - 6),
+            );
+            const d = pos.distanceTo(this.player.mesh.position);
+            if (d > 15 && d < 35) break; // close enough to chase, not on top of you
+        }
+        const size = randomIn(POWER_SPECIES.minSize, POWER_SPECIES.maxSize);
+        const fish = this.addFish(POWER_SPECIES, POWER_SKINS[kind], size, pos, false, { shininess: 110 });
+        fish.power = kind;
+        fish.life = POWER_FISH.lifetime;
+    }
+
+    private addFish(species: Species, skin: FishSkin, size: number, pos: THREE.Vector3, initial: boolean, params?: THREE.MeshPhongMaterialParameters) {
+        const geometry = this.geometries.get(species.id)!;
+        const mesh = new THREE.Mesh(geometry, this.fishMaterial(species.swim, skin, geometry, params));
         mesh.position.copy(pos);
         const personalSpeed = species.speed * randomIn(0.8, 1.2);
         const yaw = Math.random() * Math.PI * 2;
         const fish: Fish = {
-            mesh, species, size, category,
+            mesh, species, size,
+            category: this.categoryOf(size),
             yaw, pitch: 0, targetYaw: yaw, targetPitch: 0,
             speed: personalSpeed, personalSpeed, yawVelocity: 0,
             swimSpeed: species.swim.speed * randomIn(0.85, 1.15),
@@ -596,10 +780,12 @@ export class FishFrenzyGame {
             wanderTimer: randomIn(0, 3),
             age: initial ? 1 : 0,
             chasing: false,
+            life: Infinity,
         };
-        mesh.scale.setScalar(initial ? length : 0.001);
+        mesh.scale.setScalar(initial ? lengthOf(size) : 0.001);
         this.scene.add(mesh);
         this.fish.push(fish);
+        return fish;
     }
 
     private removeFish(index: number) {
@@ -633,6 +819,7 @@ export class FishFrenzyGame {
             z: f.mesh.position.z,
             length: lengthOf(f.size),
             category: f.category,
+            power: f.power && POWER_UPS[f.power].color,
         }));
         const { x, z } = this.player.mesh.position;
         drawMinimap(this.opts.minimap!, { x, z, yaw: this.player.yaw }, blips);
@@ -650,3 +837,4 @@ const _b = new THREE.Vector3();
 const _desired = new THREE.Vector3();
 const _lookAt = new THREE.Vector3();
 const _right = new THREE.Vector3();
+const _trail = new THREE.Vector3();

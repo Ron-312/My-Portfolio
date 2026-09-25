@@ -13,6 +13,7 @@ export interface MapBlip {
     z: number;
     length: number;
     category: Category;
+    power?: string; // colour of a power-up fish, drawn as a diamond
 }
 
 /**
@@ -49,6 +50,21 @@ export function drawMinimap(
     let nearest: MapBlip | null = null;
     let nearestDist = Infinity;
     for (const f of fish) {
+        if (f.power) {
+            const r = 4.5 * dpr;
+            ctx.fillStyle = f.power;
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = dpr;
+            ctx.beginPath();
+            ctx.moveTo(toPx(f.x), toPx(f.z) - r);
+            ctx.lineTo(toPx(f.x) + r, toPx(f.z));
+            ctx.lineTo(toPx(f.x), toPx(f.z) + r);
+            ctx.lineTo(toPx(f.x) - r, toPx(f.z));
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+            continue;
+        }
         ctx.fillStyle = CATEGORY_COLORS[f.category];
         const r = Math.max(1.5 * dpr, Math.min(f.length * scale * 0.5, 5 * dpr));
         ctx.beginPath();

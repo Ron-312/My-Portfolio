@@ -51,6 +51,20 @@ export class Sfx {
         [523, 659, 784, 1047].forEach((f, i) => this.tone(f, f * 1.01, 0.18, 'triangle', 0.16, i * 0.09));
     }
 
+    powerUp() {
+        [784, 988, 1175, 1568].forEach((f, i) => this.tone(f, f * 1.5, 0.12, 'sine', 0.14, i * 0.05));
+    }
+
+    shieldBreak() {
+        this.tone(1400, 300, 0.35, 'square', 0.07);
+        this.tone(700, 200, 0.4, 'triangle', 0.15, 0.02);
+    }
+
+    megaBite() {
+        this.tone(140, 60, 0.25, 'sawtooth', 0.2);
+        this.tone(280, 520, 0.15, 'sine', 0.18, 0.08);
+    }
+
     gameOver() {
         this.tone(440, 110, 0.7, 'sawtooth', 0.12);
         this.tone(220, 55, 0.8, 'sine', 0.2, 0.05);

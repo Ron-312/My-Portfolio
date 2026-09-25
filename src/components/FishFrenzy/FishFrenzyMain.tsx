@@ -2,12 +2,12 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import JoystickControl from './JoystickControl';
-import { FishFrenzyGame, type GameInput } from './game/engine';
+import { FishFrenzyGame, type GameInput, type PowerState } from './game/engine';
 import { preloadModels } from './game/models';
 import { Sfx } from './game/audio';
 import { CATEGORY_COLORS } from './game/minimap';
 import {
-    ALL_MODEL_PATHS, PLAYER_START_SIZE, SPECIES, nextUnlock, unlockSize, type Species,
+    ALL_MODEL_PATHS, PLAYER_START_SIZE, POWER_UPS, SPECIES, nextUnlock, unlockSize,
 } from './game/config';
 
 interface FishFrenzyProps {
@@ -15,6 +15,14 @@ interface FishFrenzyProps {
 }
 
 type Phase = 'menu' | 'loading' | 'playing' | 'paused' | 'over' | 'error';
+
+interface Toast {
+    kicker: string;
+    title: string;
+    color: string;
+}
+
+const NO_POWERS: PowerState = { speed: 0, shields: 0, bites: 0 };
 
 interface FullscreenElement extends HTMLDivElement {
     webkitRequestFullscreen?: () => Promise<void>;
@@ -63,7 +71,8 @@ export default function FishFrenzy({ height = "h-96" }: FishFrenzyProps) {
     const [highScore, setHighScore] = useState(0);
     const highScoreRef = useRef(0);
     const [newBest, setNewBest] = useState(false);
-    const [toast, setToast] = useState<Species | null>(null);
+    const [toast, setToast] = useState<Toast | null>(null);
+    const [powers, setPowers] = useState<PowerState>(NO_POWERS);
     const [muted, setMuted] = useState(false);
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [touch, setTouch] = useState(false);
@@ -92,6 +101,7 @@ export default function FishFrenzy({ height = "h-96" }: FishFrenzyProps) {
         setSize(PLAYER_START_SIZE);
         setNewBest(false);
         setToast(null);
+        setPowers(NO_POWERS);
         setPhase('loading');
 
         (async () => {
@@ -106,7 +116,17 @@ export default function FishFrenzy({ height = "h-96" }: FishFrenzyProps) {
                     mobile: window.matchMedia('(pointer: coarse)').matches || window.innerWidth < 600,
                     events: {
                         onStats: (s, sz) => { setScore(s); setSize(sz); },
-                        onUnlock: species => setToast(species),
+                        onUnlock: species => setToast({
+                            kicker: 'Level up',
+                            title: `${species.emoji} ${species.name} are on the menu!`,
+                            color: '#67e8f9',
+                        }),
+                        onPowerUp: power => setToast({
+                            kicker: `${power.emoji} ${power.name}`,
+                            title: power.description,
+                            color: power.color,
+                        }),
+                        onPowers: setPowers,
                         onPauseChange: paused => setPhase(paused ? 'paused' : 'playing'),
                         onGameOver: finalScore => {
                             setPhase('over');
@@ -156,7 +176,7 @@ export default function FishFrenzy({ height = "h-96" }: FishFrenzyProps) {
         writeStorage(MUTED_KEY, next ? '1' : '0');
     };
 
-    // Unlock toasts fade on their own.
+    // Toasts fade on their own.
     useEffect(() => {
         if (!toast) return;
         const id = setTimeout(() => setToast(null), 2800);
@@ -265,6 +285,13 @@ export default function FishFrenzy({ height = "h-96" }: FishFrenzyProps) {
                             <span><span className="mr-1 inline-block h-2 w-2 rounded-full" style={{ background: CATEGORY_COLORS.neutral }} />bump</span>
                             <span><span className="mr-1 inline-block h-2 w-2 rounded-full" style={{ background: CATEGORY_COLORS.danger }} />run!</span>
                         </div>
+                        {(powers.speed > 0 || powers.shields > 0 || powers.bites > 0) && (
+                            <div className="mt-2 flex flex-wrap gap-1.5">
+                                {powers.speed > 0 && <PowerChip color={POWER_UPS.speed.color}>{POWER_UPS.speed.emoji} {powers.speed}s</PowerChip>}
+                                {powers.shields > 0 && <PowerChip color={POWER_UPS.shield.color}>{POWER_UPS.shield.emoji} ×{powers.shields}</PowerChip>}
+                                {powers.bites > 0 && <PowerChip color={POWER_UPS.bite.color}>{POWER_UPS.bite.emoji} ×{powers.bites}</PowerChip>}
+                            </div>
+                        )}
                     </div>
                 )}
 
@@ -292,12 +319,12 @@ export default function FishFrenzy({ height = "h-96" }: FishFrenzyProps) {
                     <canvas ref={minimapRef} className="h-16 w-16 @sm:h-24 @sm:w-24 @lg:h-28 @lg:w-28" aria-label="Minimap" />
                 </div>
 
-                {/* Species unlocked */}
+                {/* Species unlocked / power-up collected */}
                 {toast && inGame && (
                     <div className="pointer-events-none absolute inset-x-0 top-1/4 z-30 flex justify-center">
                         <div className="mx-3 animate-bounce rounded-xl bg-black/60 px-4 py-2.5 text-center text-white shadow-xl backdrop-blur-sm">
-                            <div className="text-xs uppercase tracking-widest text-cyan-300">Level up</div>
-                            <div className="text-sm font-bold @sm:text-lg">{toast.emoji} {toast.name} are on the menu!</div>
+                            <div className="text-xs uppercase tracking-widest" style={{ color: toast.color }}>{toast.kicker}</div>
+                            <div className="text-sm font-bold @sm:text-lg">{toast.title}</div>
                         </div>
                     </div>
                 )}
@@ -309,6 +336,7 @@ export default function FishFrenzy({ height = "h-96" }: FishFrenzyProps) {
                             Eat smaller fish to grow, dodge the big ones, and work your way up to goblin sharks.
                             Fish glowing <span className="font-semibold text-green-400">green</span> are food,{' '}
                             <span className="font-semibold text-red-400">red</span> ones are hungry.
+                            Chase down the rare sparkling fish for ⚡ speed, 🛡️ shields and 🦷 mega bites!
                         </p>
                         <p className="mb-4 max-w-md px-4 text-sm text-white/75">
                             {touch
@@ -378,6 +406,17 @@ function PrimaryButton({ onClick, children }: { onClick: () => void; children: R
         <button onClick={onClick} className="rounded-lg bg-cyan-500 px-5 py-2 font-semibold text-white shadow-md transition-colors hover:bg-cyan-600">
             {children}
         </button>
+    );
+}
+
+function PowerChip({ color, children }: { color: string; children: React.ReactNode }) {
+    return (
+        <div
+            className="rounded-full bg-black/55 px-2 py-0.5 text-[11px] font-semibold text-white"
+            style={{ boxShadow: `0 0 0 2px ${color}, 0 0 12px ${color}` }}
+        >
+            {children}
+        </div>
     );
 }
 
