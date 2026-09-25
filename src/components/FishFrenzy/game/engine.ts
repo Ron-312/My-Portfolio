@@ -1,10 +1,13 @@
 import * as THREE from 'three';
 import {
     CORALS, EAT_RATIO, INVULNERABLE_SECONDS, LENGTH_PER_SIZE, PLAYER, PLAYER_START_SIZE,
-    SPECIES, WORLD, growthFor, pointsFor, unlockSize, type Species,
+    SPECIES, WORLD, growthFor, pointsFor, unlockSize, type Species, type SwimParams,
 } from './config';
 import { fishGeometry, propModel } from './models';
 import { createSwimMaterial, type SwimMaterial } from './swimMaterial';
+import { createOceanUniforms, withCaustics } from './caustics';
+import { Reef, WATER, floorHeight } from './reef';
+import { Schools } from './schools';
 import { Bubbles, Bursts } from './effects';
 import { CATEGORY_COLORS, drawMinimap, type Category, type MapBlip } from './minimap';
 import type { Sfx } from './audio';
@@ -56,8 +59,6 @@ interface Fish extends Swimmer {
 }
 
 const LOGIC_STEP = 1 / 60;
-const BACKGROUND = 0x0569a0;
-const CORAL_TINTS = ['#ff8a80', '#ffab62', '#c77dff', '#ffd166', '#f28482', '#80ffdb'];
 const CATEGORY_HUES: Record<Category, [number, number, number]> = {
     edible: [0.33, 0.65, 0.5],
     neutral: [0.12, 0.85, 0.55],
@@ -94,6 +95,9 @@ export class FishFrenzyGame {
     private readonly bursts = new Bursts();
     private readonly disposables: { dispose(): void }[] = [];
     private readonly geometries = new Map<string, THREE.BufferGeometry>();
+    private readonly ocean = createOceanUniforms();
+    private reef!: Reef;
+    private schools!: Schools;
 
     private player!: Swimmer;
     private fish: Fish[] = [];
@@ -134,10 +138,10 @@ export class FishFrenzyGame {
 
         this.camera = new THREE.PerspectiveCamera(70, container.clientWidth / container.clientHeight, 0.1, 200);
 
-        this.scene.background = new THREE.Color(BACKGROUND);
-        this.scene.fog = new THREE.FogExp2(BACKGROUND, mobile ? 0.03 : 0.024);
+        this.scene.background = WATER.horizon.clone();
+        this.scene.fog = new THREE.FogExp2(WATER.horizon, mobile ? 0.028 : 0.022);
 
-        this.scene.add(new THREE.HemisphereLight(0xbfe8ff, 0x0a3050, 1.6));
+        this.scene.add(new THREE.HemisphereLight(0xcff4ff, 0x2a4a5a, 1.7));
         const sun = new THREE.DirectionalLight(0xffffff, 1.4);
         sun.position.set(10, 30, 8);
         this.scene.add(sun);
@@ -162,11 +166,13 @@ export class FishFrenzyGame {
         ]);
         SPECIES.forEach((s, i) => this.geometries.set(s.id, speciesGeos[i]));
 
-        this.addFloor();
-        this.addCorals(tree.geometry, tree.material, 18, [1.5, 4]);
-        this.addCorals(fan.geometry, fan.material, 18, [1.2, 3]);
+        const { mobile } = this.opts;
+        this.reef = new Reef({ mobile, uniforms: this.ocean, treeCoral: tree, fanCoral: fan });
+        this.schools = new Schools(mobile ? 2 : 4, mobile ? 16 : 24, this.ocean);
+        this.scene.add(this.reef.group, this.schools.mesh);
+        this.disposables.push(this.reef, this.schools);
 
-        const material = createSwimMaterial(PLAYER.swim, {
+        const material = this.fishMaterial(PLAYER.swim, {
             color: 0x2cc8de,
             shininess: 90,
             specular: 0x333333,
@@ -191,42 +197,8 @@ export class FishFrenzyGame {
 
         while (this.fish.length < this.targetPopulation) this.spawnFish(0.12, true);
         this.updateCamera(1);
+        this.reef.update(this.camera);
         this.unlocked = SPECIES.filter(s => PLAYER_START_SIZE > unlockSize(s)).length;
-    }
-
-    private addFloor() {
-        const size = WORLD.halfWidth * 2 + 60;
-        const geometry = new THREE.PlaneGeometry(size, size, 48, 48);
-        geometry.rotateX(-Math.PI / 2);
-        const pos = geometry.attributes.position;
-        for (let i = 0; i < pos.count; i++) {
-            const x = pos.getX(i), z = pos.getZ(i);
-            pos.setY(i, Math.sin(x * 0.15) * 0.4 + Math.cos(z * 0.11 + x * 0.05) * 0.5 + Math.random() * 0.15);
-        }
-        geometry.computeVertexNormals();
-        const material = new THREE.MeshPhongMaterial({ color: 0x3f8f96, shininess: 5 });
-        const floor = new THREE.Mesh(geometry, material);
-        floor.position.y = WORLD.floorY - 0.4;
-        this.scene.add(floor);
-        this.disposables.push(geometry, material);
-    }
-
-    private addCorals(geometry: THREE.BufferGeometry, material: THREE.Material, count: number, heights: [number, number]) {
-        const mesh = new THREE.InstancedMesh(geometry, material, count);
-        const dummy = new THREE.Object3D();
-        const color = new THREE.Color();
-        for (let i = 0; i < count; i++) {
-            const h = randomIn(...heights);
-            dummy.position.set(randomIn(-1, 1) * WORLD.halfWidth, WORLD.floorY - 0.3, randomIn(-1, 1) * WORLD.halfWidth);
-            dummy.rotation.set(0, Math.random() * Math.PI * 2, 0);
-            dummy.scale.setScalar(h);
-            dummy.updateMatrix();
-            mesh.setMatrixAt(i, dummy.matrix);
-            mesh.setColorAt(i, color.set(CORAL_TINTS[i % CORAL_TINTS.length]));
-        }
-        mesh.instanceMatrix.needsUpdate = true;
-        this.scene.add(mesh);
-        this.disposables.push({ dispose: () => mesh.dispose() });
     }
 
     // ───────────────────────── lifecycle ─────────────────────────
@@ -300,7 +272,10 @@ export class FishFrenzyGame {
 
         this.bubbles.update(dt, this.time);
         this.bursts.update(dt);
+        this.ocean.uTime.value = this.time;
+        this.schools.update(this.time, dt, this.player.mesh.position, lengthOf(this.player.size));
         this.updateCamera(dt);
+        this.reef.update(this.camera);
 
         if (this.opts.minimap && this.tickCount % 4 === 0) this.drawMap();
     }
@@ -362,11 +337,16 @@ export class FishFrenzyGame {
         swim.uAmp.value += (s.amp * ampBoost - swim.uAmp.value) * (1 - Math.exp(-4 * dt));
     }
 
+    /** Swim material with reef caustics dancing over the fish's back. */
+    private fishMaterial(swim: SwimParams, params: THREE.MeshPhongMaterialParameters) {
+        return withCaustics(createSwimMaterial(swim, params), this.ocean, { strength: 0.3, scale: 0.35 });
+    }
+
     private keepInBounds(pos: THREE.Vector3, length: number) {
         const w = WORLD.halfWidth;
         pos.x = clamp(pos.x, -w, w);
         pos.z = clamp(pos.z, -w, w);
-        pos.y = clamp(pos.y, WORLD.floorY + length * 0.2, WORLD.surfaceY);
+        pos.y = clamp(pos.y, floorHeight(pos.x, pos.z) + length * 0.2, WORLD.surfaceY);
     }
 
     private categoryOf(size: number): Category {
@@ -590,7 +570,7 @@ export class FishFrenzyGame {
         }
 
         const hue = randomIn(-0.05, 0.05);
-        const material = createSwimMaterial(species.swim, { shininess: 50, specular: 0x222222 });
+        const material = this.fishMaterial(species.swim, { shininess: 50, specular: 0x222222 });
         const category = this.categoryOf(size);
         const [h, s, l] = CATEGORY_HUES[category];
         material.color.setHSL((h + hue + 1) % 1, s, l);
@@ -634,7 +614,7 @@ export class FishFrenzyGame {
             .addScaledVector(forward, -(1.8 + length * 1.8))
             .addScaledVector(_right, length * 0.5);
         _desired.y += 0.4 + length * 0.8;
-        _desired.y = Math.max(_desired.y, WORLD.floorY + 0.5);
+        _desired.y = Math.max(_desired.y, floorHeight(_desired.x, _desired.z) + 0.6);
         this.camera.position.lerp(_desired, 1 - Math.exp(-5 * dt));
         _lookAt.copy(p.mesh.position).addScaledVector(forwardOf(p.yaw, p.pitch, _fishForward), length * 1.5);
         this.camera.lookAt(_lookAt);
