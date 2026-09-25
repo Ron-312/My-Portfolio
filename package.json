@@ -10,7 +10,6 @@
   },
   "dependencies": {
     "@emailjs/browser": "^4.4.1",
-    "draco3d": "^1.5.7",
     "framer-motion": "^12.6.2",
     "next": "15.2.4",
     "react": "^19.0.0",
