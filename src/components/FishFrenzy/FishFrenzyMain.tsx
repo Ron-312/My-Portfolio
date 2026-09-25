@@ -260,6 +260,7 @@ export default function FishFrenzy({ height = "h-96" }: FishFrenzyProps) {
                             {next ? <>Next: {next.emoji} {next.name} at {unlockSize(next).toFixed(1)}</> : <>👑 Apex predator!</>}
                         </div>
                         <div className="mt-1.5 hidden gap-2 text-[10px] text-white/85 @sm:flex">
+                            <span className="text-white/60">Glow:</span>
                             <span><span className="mr-1 inline-block h-2 w-2 rounded-full" style={{ background: CATEGORY_COLORS.edible }} />eat</span>
                             <span><span className="mr-1 inline-block h-2 w-2 rounded-full" style={{ background: CATEGORY_COLORS.neutral }} />bump</span>
                             <span><span className="mr-1 inline-block h-2 w-2 rounded-full" style={{ background: CATEGORY_COLORS.danger }} />run!</span>
@@ -306,6 +307,8 @@ export default function FishFrenzy({ height = "h-96" }: FishFrenzyProps) {
                         <h2 className="mb-2 text-3xl font-bold text-cyan-300">Fish Frenzy</h2>
                         <p className="mb-3 max-w-md px-4 text-white">
                             Eat smaller fish to grow, dodge the big ones, and work your way up to goblin sharks.
+                            Fish glowing <span className="font-semibold text-green-400">green</span> are food,{' '}
+                            <span className="font-semibold text-red-400">red</span> ones are hungry.
                         </p>
                         <p className="mb-4 max-w-md px-4 text-sm text-white/75">
                             {touch

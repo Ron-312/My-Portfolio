@@ -5,6 +5,7 @@ import {
 } from './config';
 import { fishGeometry, propModel } from './models';
 import { createSwimMaterial, type SwimMaterial } from './swimMaterial';
+import { PLAYER_SKIN, SPECIES_SKINS, type FishSkin } from './skins';
 import { createOceanUniforms, withCaustics } from './caustics';
 import { Reef, WATER, floorHeight } from './reef';
 import { Schools } from './schools';
@@ -53,17 +54,24 @@ interface Fish extends Swimmer {
     targetPitch: number;
     wanderTimer: number;
     personalSpeed: number; // per-fish variation of the species speed
-    hue: number;
     age: number;
     chasing: boolean;
 }
 
 const LOGIC_STEP = 1 / 60;
-const CATEGORY_HUES: Record<Category, [number, number, number]> = {
-    edible: [0.33, 0.65, 0.5],
-    neutral: [0.12, 0.85, 0.55],
-    danger: [0.0, 0.8, 0.5],
+// Fish wear natural colours; a glowing rim says whether they're food or a threat.
+const CATEGORY_RIM: Record<Category, { color: THREE.Color; strength: number }> = {
+    edible: { color: new THREE.Color(CATEGORY_COLORS.edible), strength: 1.4 },
+    neutral: { color: new THREE.Color(CATEGORY_COLORS.neutral), strength: 1.1 },
+    danger: { color: new THREE.Color(CATEGORY_COLORS.danger), strength: 1.8 },
 };
+
+/** Half the body height of a normalized fish geometry, for belly-to-back shading. */
+function halfHeightOf(geometry: THREE.BufferGeometry) {
+    geometry.computeBoundingBox();
+    const box = geometry.boundingBox!;
+    return Math.max(Math.abs(box.min.y), Math.abs(box.max.y));
+}
 
 const lengthOf = (size: number) => size * LENGTH_PER_SIZE;
 const wrapAngle = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
@@ -172,13 +180,9 @@ export class FishFrenzyGame {
         this.scene.add(this.reef.group, this.schools.mesh);
         this.disposables.push(this.reef, this.schools);
 
-        const material = this.fishMaterial(PLAYER.swim, {
-            color: 0x2cc8de,
-            shininess: 90,
-            specular: 0x333333,
-            emissive: 0x114455,
-            emissiveIntensity: 0.4,
-        });
+        const material = this.fishMaterial(PLAYER.swim, PLAYER_SKIN, playerGeo, { shininess: 90 });
+        // A soft white outline keeps you easy to find among the natural colours.
+        material.userData.skin.uRimStrength.value = 0.2;
         this.disposables.push(material);
         const cruise = PLAYER.baseSpeed + PLAYER_START_SIZE * PLAYER.speedPerSize;
         this.player = {
@@ -338,8 +342,9 @@ export class FishFrenzyGame {
     }
 
     /** Swim material with reef caustics dancing over the fish's back. */
-    private fishMaterial(swim: SwimParams, params: THREE.MeshPhongMaterialParameters) {
-        return withCaustics(createSwimMaterial(swim, params), this.ocean, { strength: 0.3, scale: 0.35 });
+    private fishMaterial(swim: SwimParams, skin: FishSkin, geometry: THREE.BufferGeometry, params?: THREE.MeshPhongMaterialParameters) {
+        const material = createSwimMaterial(swim, skin, halfHeightOf(geometry), params);
+        return withCaustics(material, this.ocean, { strength: 0.3, scale: 0.35 });
     }
 
     private keepInBounds(pos: THREE.Vector3, length: number) {
@@ -417,12 +422,13 @@ export class FishFrenzyGame {
     }
 
     private tintFish(f: Fish, dt: number) {
-        const [h, s, l] = CATEGORY_HUES[f.category];
-        _color.setHSL((h + f.hue + 1) % 1, s, l);
-        const m = f.mesh.material;
-        m.color.lerp(_color, 1 - Math.exp(-5 * dt));
-        const glow = f.chasing ? 0.35 + 0.25 * Math.sin(this.time * 10) : 0;
-        m.emissive.setRGB(glow, glow * 0.1, 0);
+        const rim = CATEGORY_RIM[f.category];
+        const skin = f.mesh.material.userData.skin;
+        const blend = 1 - Math.exp(-5 * dt);
+        skin.uRimColor.value.lerp(rim.color, blend);
+        skin.uRimStrength.value += (rim.strength - skin.uRimStrength.value) * blend;
+        const glow = f.chasing ? 0.2 + 0.15 * Math.sin(this.time * 10) : 0;
+        f.mesh.material.emissive.setRGB(glow, glow * 0.1, 0);
     }
 
     // ───────────────────────── collisions ─────────────────────────
@@ -569,18 +575,19 @@ export class FishFrenzyGame {
             if (pos.distanceTo(playerPos) > minDistance) break;
         }
 
-        const hue = randomIn(-0.05, 0.05);
-        const material = this.fishMaterial(species.swim, { shininess: 50, specular: 0x222222 });
+        const geometry = this.geometries.get(species.id)!;
+        const material = this.fishMaterial(species.swim, SPECIES_SKINS[species.id], geometry);
+        material.color.setHSL(Math.random(), randomIn(0, 0.3), randomIn(0.85, 0.95)); // individual variation
         const category = this.categoryOf(size);
-        const [h, s, l] = CATEGORY_HUES[category];
-        material.color.setHSL((h + hue + 1) % 1, s, l);
+        material.userData.skin.uRimColor.value.copy(CATEGORY_RIM[category].color);
+        material.userData.skin.uRimStrength.value = CATEGORY_RIM[category].strength;
 
-        const mesh = new THREE.Mesh(this.geometries.get(species.id)!, material);
+        const mesh = new THREE.Mesh(geometry, material);
         mesh.position.copy(pos);
         const personalSpeed = species.speed * randomIn(0.8, 1.2);
         const yaw = Math.random() * Math.PI * 2;
         const fish: Fish = {
-            mesh, species, size, category, hue,
+            mesh, species, size, category,
             yaw, pitch: 0, targetYaw: yaw, targetPitch: 0,
             speed: personalSpeed, personalSpeed, yawVelocity: 0,
             swimSpeed: species.swim.speed * randomIn(0.85, 1.15),
@@ -643,4 +650,3 @@ const _b = new THREE.Vector3();
 const _desired = new THREE.Vector3();
 const _lookAt = new THREE.Vector3();
 const _right = new THREE.Vector3();
-const _color = new THREE.Color();

@@ -114,7 +114,7 @@ export class Reef {
                 varying vec3 vDir;
                 void main() {
                     float y = normalize(vDir).y;
-                    vec3 color = mix(uHorizon, uDeep, smoothstep(0.0, -0.7, y));
+                    vec3 color = mix(uHorizon, uDeep, 1.0 - smoothstep(-0.7, 0.0, y));
                     color = mix(color, uShallow, smoothstep(0.05, 0.9, y));
                     gl_FragColor = vec4(color, 1.0);
                     #include <colorspace_fragment>
