@@ -137,7 +137,7 @@ export default function About() {
                                             Close Game
                                         </button>
                                         <p className="text-sm text-gray-500 max-w-md mx-auto mt-2">
-                                            Eat smaller fish to grow bigger! Use arrow keys or WASD to move.
+                                            Eat the green-glowing fish, flee the red ones! Arrow keys or WASD to steer, Shift to sprint, P to pause.
                                         </p>
                                     </div>
                                 )}
