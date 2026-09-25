@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { WORLD } from './config';
 import { withCaustics, type OceanUniforms } from './caustics';
+import { approach, randomIn } from './math';
 
 // Schools of little silver fish that loop around the reef. They're scenery,
 // not food: they don't collide, and they scatter when you swim through them.
@@ -50,13 +51,13 @@ export class Schools {
         for (let s = 0; s < schoolCount; s++) {
             const school: School = {
                 anchor: new THREE.Vector3(
-                    THREE.MathUtils.randFloat(-limit, limit) * 0.6,
-                    THREE.MathUtils.randFloat(WORLD.floorY + 4, WORLD.surfaceY - 5),
-                    THREE.MathUtils.randFloat(-limit, limit) * 0.6,
+                    randomIn(-limit, limit) * 0.6,
+                    randomIn(WORLD.floorY + 4, WORLD.surfaceY - 5),
+                    randomIn(-limit, limit) * 0.6,
                 ),
-                radiusX: THREE.MathUtils.randFloat(8, 14),
-                radiusZ: THREE.MathUtils.randFloat(8, 14),
-                speed: THREE.MathUtils.randFloat(0.08, 0.14) * (Math.random() < 0.5 ? -1 : 1),
+                radiusX: randomIn(8, 14),
+                radiusZ: randomIn(8, 14),
+                speed: randomIn(0.08, 0.14) * (Math.random() < 0.5 ? -1 : 1),
                 phase: Math.random() * Math.PI * 2,
                 center: new THREE.Vector3(),
                 heading: new THREE.Vector3(0, 0, 1),
@@ -66,13 +67,13 @@ export class Schools {
                 this.fish.push({
                     school,
                     offset: new THREE.Vector3(
-                        THREE.MathUtils.randFloatSpread(3.2),
-                        THREE.MathUtils.randFloatSpread(1.6),
-                        THREE.MathUtils.randFloatSpread(4),
+                        randomIn(-1.6, 1.6),
+                        randomIn(-0.8, 0.8),
+                        randomIn(-2, 2),
                     ),
                     push: new THREE.Vector3(),
                     phase: Math.random() * Math.PI * 2,
-                    size: THREE.MathUtils.randFloat(0.3, 0.45),
+                    size: randomIn(0.3, 0.45),
                 });
             }
         }
@@ -94,7 +95,7 @@ export class Schools {
         const color = new THREE.Color();
         this.fish.forEach((f, i) => {
             const base = SCHOOL_COLORS[this.schools.indexOf(f.school) % SCHOOL_COLORS.length];
-            this.mesh.setColorAt(i, color.set(base).offsetHSL(0, 0, THREE.MathUtils.randFloatSpread(0.1)));
+            this.mesh.setColorAt(i, color.set(base).offsetHSL(0, 0, randomIn(-0.05, 0.05)));
         });
         this.update(0, 1 / 60, new THREE.Vector3(0, -1000, 0), 1);
     }
@@ -115,9 +116,9 @@ export class Schools {
         }
 
         const scareRadius = 2.5 + playerLength * 1.5;
-        const target = new THREE.Vector3();
-        const away = new THREE.Vector3();
-        const blend = 1 - Math.exp(-5 * dt);
+        const target = _target;
+        const away = _away;
+        const blend = approach(5, dt);
         this.fish.forEach((f, i) => {
             const s = f.school;
             const yaw = Math.atan2(s.heading.x, s.heading.z);
@@ -146,3 +147,7 @@ export class Schools {
         this.mesh.dispose();
     }
 }
+
+// Scratch vectors reused every update.
+const _target = new THREE.Vector3();
+const _away = new THREE.Vector3();

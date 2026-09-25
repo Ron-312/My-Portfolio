@@ -93,7 +93,7 @@ vec3 fishSkin() {
 }
 `;
 
-const toLinear = (hex: string) => new THREE.Color(hex);
+const colorUniform = (hex: string) => ({ value: new THREE.Color(hex) });
 
 export function createSwimMaterial(
     swim: SwimParams,
@@ -113,21 +113,21 @@ export function createSwimMaterial(
         uRimStrength: { value: 0 },
     };
     const paint = {
-        uBack: { value: toLinear(skin.back) },
-        uBelly: { value: toLinear(skin.belly) },
-        uStripe: { value: toLinear(skin.stripe?.color ?? skin.back) },
+        uBack: colorUniform(skin.back),
+        uBelly: colorUniform(skin.belly),
+        uStripe: colorUniform(skin.stripe?.color ?? skin.back),
         uStripeY: { value: skin.stripe?.y ?? 0 },
         uStripeWidth: { value: skin.stripe?.width ?? 0 },
-        uBarColor: { value: toLinear(skin.bars?.color ?? skin.back) },
+        uBarColor: colorUniform(skin.bars?.color ?? skin.back),
         uBars: { value: skin.bars?.count ?? 0 },
         uBarStrength: { value: skin.bars?.strength ?? 0 },
-        uSpot: { value: toLinear(skin.spots?.color ?? skin.back) },
+        uSpot: colorUniform(skin.spots?.color ?? skin.back),
         uSpotDensity: { value: skin.spots?.density ?? 0 },
         uSpotSize: { value: skin.spots?.size ?? 0 },
         uSpotPulse: { value: skin.spots?.pulse ? 1 : 0 },
-        uFin: { value: toLinear(skin.fin) },
+        uFin: colorUniform(skin.fin),
         uTailStart: { value: skin.tailStart },
-        uSheen: { value: toLinear(skin.sheen) },
+        uSheen: colorUniform(skin.sheen),
         uScales: { value: skin.scales },
         uHalfHeight: { value: halfHeight },
     };

@@ -150,6 +150,7 @@ export const POWER_UPS: Record<PowerKind, PowerUp> = {
 };
 
 export const SPEED_BOOST = { seconds: 8, multiplier: 1.5 };
+export const SHIELD_GRACE_SECONDS = 1.5;    // safety after a shield pops
 export const MAX_POWER_CHARGES = 2;       // shields / mega bites you can hold at once
 export const POWER_POINTS = 25;
 
@@ -192,6 +193,16 @@ export const unlockSize = (s: Species) => s.minSize * EAT_RATIO;
 /** Species the player can't eat any of yet (the next one is the next goal). */
 export function nextUnlock(playerSize: number): Species | undefined {
     return SPECIES.find(s => playerSize <= unlockSize(s));
+}
+
+/** The next species to unlock, and how far (0–1) you are from the previous unlock to it. */
+export function unlockProgress(playerSize: number) {
+    const next = nextUnlock(playerSize);
+    if (!next) return { next, fraction: 1 };
+    const previous = SPECIES.filter(s => playerSize > unlockSize(s)).at(-1);
+    const from = previous ? unlockSize(previous) : PLAYER_START_SIZE;
+    const fraction = (playerSize - from) / (unlockSize(next) - from);
+    return { next, fraction: Math.min(1, Math.max(0, fraction)) };
 }
 
 /** How much the player grows after eating a fish of `eatenSize` (capped, so a mega bite can't triple you). */

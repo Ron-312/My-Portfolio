@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import {
     CORALS, EAT_RATIO, INVULNERABLE_SECONDS, LENGTH_PER_SIZE, MAX_POWER_CHARGES, PLAYER, PLAYER_START_SIZE,
-    POWER_FISH, POWER_POINTS, POWER_SPECIES, POWER_UPS, SPECIES, SPEED_BOOST, WORLD,
+    POWER_FISH, POWER_POINTS, POWER_SPECIES, POWER_UPS, SHIELD_GRACE_SECONDS, SPECIES, SPEED_BOOST, WORLD,
     growthFor, pointsFor, unlockSize, type PowerKind, type PowerUp, type Species, type SwimParams,
 } from './config';
 import { fishGeometry, propModel } from './models';
@@ -12,6 +12,7 @@ import { Reef, WATER, floorHeight } from './reef';
 import { Schools } from './schools';
 import { Bubbles, Bursts } from './effects';
 import { CATEGORY_COLORS, drawMinimap, type Category, type MapBlip } from './minimap';
+import { approach, clamp, pick, randomIn, wrapAngle } from './math';
 import type { Sfx } from './audio';
 
 export interface GameInput {
@@ -71,31 +72,32 @@ interface Fish extends Swimmer {
 }
 
 const LOGIC_STEP = 1 / 60;
+
 // Fish wear natural colours; a glowing rim says whether they're food or a threat.
 const CATEGORY_RIM: Record<Category, { color: THREE.Color; strength: number }> = {
     edible: { color: new THREE.Color(CATEGORY_COLORS.edible), strength: 1.4 },
     neutral: { color: new THREE.Color(CATEGORY_COLORS.neutral), strength: 1.1 },
     danger: { color: new THREE.Color(CATEGORY_COLORS.danger), strength: 1.8 },
 };
+const PLAYER_RIM = { color: new THREE.Color(0xffffff), strength: 0.2 };
+const POWER_KINDS = Object.keys(POWER_UPS) as PowerKind[];
+const POWER_COLORS = Object.fromEntries(
+    POWER_KINDS.map(k => [k, new THREE.Color(POWER_UPS[k].color)]),
+) as Record<PowerKind, THREE.Color>;
+const ALL_SPECIES = [...SPECIES, POWER_SPECIES];
+
+const lengthOf = (size: number) => size * LENGTH_PER_SIZE;
+
+/** Unit heading for a yaw (around Y, 0 = +Z) and pitch (+ = nose up). */
+function forwardOf(yaw: number, pitch: number, out: THREE.Vector3) {
+    return out.set(Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), Math.cos(yaw) * Math.cos(pitch));
+}
 
 /** Half the body height of a normalized fish geometry, for belly-to-back shading. */
 function halfHeightOf(geometry: THREE.BufferGeometry) {
     geometry.computeBoundingBox();
     const box = geometry.boundingBox!;
     return Math.max(Math.abs(box.min.y), Math.abs(box.max.y));
-}
-
-const lengthOf = (size: number) => size * LENGTH_PER_SIZE;
-const pick = <T,>(items: T[]) => items[Math.floor(Math.random() * items.length)];
-const POWER_KINDS = Object.keys(POWER_UPS) as PowerKind[];
-const POWER_COLORS = Object.fromEntries(POWER_KINDS.map(k => [k, new THREE.Color(POWER_UPS[k].color)])) as Record<PowerKind, THREE.Color>;
-const PLAYER_RIM = new THREE.Color(0xffffff);
-const wrapAngle = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
-const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
-const randomIn = (min: number, max: number) => min + Math.random() * (max - min);
-
-function forwardOf(yaw: number, pitch: number, out = new THREE.Vector3()) {
-    return out.set(Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), Math.cos(yaw) * Math.cos(pitch));
 }
 
 /** Closest distance from point p to the segment a–b. */
@@ -120,6 +122,7 @@ export class FishFrenzyGame {
     private readonly disposables: { dispose(): void }[] = [];
     private readonly geometries = new Map<string, THREE.BufferGeometry>();
     private readonly ocean = createOceanUniforms();
+    private readonly targetPopulation: number;
     private reef!: Reef;
     private schools!: Schools;
 
@@ -145,8 +148,6 @@ export class FishFrenzyGame {
     private bites = 0;
     private lastPowerReport = '';
     private shieldBubble!: THREE.Mesh;
-
-    private readonly targetPopulation: number;
 
     /** Builds a game once all models are cached (see preloadModels). */
     static async create(opts: GameOptions) {
@@ -193,9 +194,9 @@ export class FishFrenzyGame {
             fishGeometry(PLAYER.modelPath, PLAYER.head, PLAYER.up),
             propModel(CORALS.tree),
             propModel(CORALS.fan),
-            ...[...SPECIES, POWER_SPECIES].map(s => fishGeometry(s.modelPath, s.head, s.up)),
+            ...ALL_SPECIES.map(s => fishGeometry(s.modelPath, s.head, s.up)),
         ]);
-        [...SPECIES, POWER_SPECIES].forEach((s, i) => this.geometries.set(s.id, speciesGeos[i]));
+        ALL_SPECIES.forEach((s, i) => this.geometries.set(s.id, speciesGeos[i]));
 
         const { mobile } = this.opts;
         this.reef = new Reef({ mobile, uniforms: this.ocean, treeCoral: tree, fanCoral: fan });
@@ -204,8 +205,6 @@ export class FishFrenzyGame {
         this.disposables.push(this.reef, this.schools);
 
         const material = this.fishMaterial(PLAYER.swim, PLAYER_SKIN, playerGeo, { shininess: 90 });
-        // A soft white outline keeps you easy to find among the natural colours.
-        material.userData.skin.uRimStrength.value = 0.2;
         this.disposables.push(material);
         const cruise = PLAYER.baseSpeed + PLAYER_START_SIZE * PLAYER.speedPerSize;
         this.player = {
@@ -306,7 +305,8 @@ export class FishFrenzyGame {
         this.updateCamera(dt);
         this.reef.update(this.camera);
 
-        if (this.opts.minimap && this.tickCount % 4 === 0) this.drawMap();
+        const { minimap } = this.opts;
+        if (minimap && this.tickCount % 4 === 0) this.drawMap(minimap);
     }
 
     private readInput() {
@@ -340,7 +340,7 @@ export class FishFrenzyGame {
         p.cruise = PLAYER.baseSpeed + p.size * PLAYER.speedPerSize;
         const boosted = this.speedTime > 0 ? SPEED_BOOST.multiplier : 1;
         const targetSpeed = p.cruise * (sprint ? PLAYER.sprintMultiplier : 1) * boosted;
-        p.speed += (targetSpeed - p.speed) * (1 - Math.exp(-4 * dt));
+        p.speed += (targetSpeed - p.speed) * approach(4, dt);
 
         pos.addScaledVector(forwardOf(p.yaw, p.pitch, _forward), p.speed * dt);
         this.keepInBounds(pos, lengthOf(p.size));
@@ -369,8 +369,9 @@ export class FishFrenzyGame {
             skin.uRimColor.value.copy(POWER_COLORS.speed);
             skin.uRimStrength.value = 1 + pulse * 0.5;
         } else {
-            skin.uRimColor.value.copy(PLAYER_RIM);
-            skin.uRimStrength.value = 0.2;
+            // A soft white outline keeps you easy to find among the natural colours.
+            skin.uRimColor.value.copy(PLAYER_RIM.color);
+            skin.uRimStrength.value = PLAYER_RIM.strength;
         }
 
         this.sparkleCooldown -= dt;
@@ -448,8 +449,8 @@ export class FishFrenzyGame {
         const effort = s.speed / Math.max(s.cruise, 0.01);
         swim.uPhase.value += dt * s.swimSpeed * (0.4 + 0.6 * effort);
         const targetBend = clamp(s.yawVelocity * 0.08, -0.15, 0.15);
-        swim.uBend.value += (targetBend - swim.uBend.value) * (1 - Math.exp(-6 * dt));
-        swim.uAmp.value += (s.amp * ampBoost - swim.uAmp.value) * (1 - Math.exp(-4 * dt));
+        swim.uBend.value += (targetBend - swim.uBend.value) * approach(6, dt);
+        swim.uAmp.value += (s.amp * ampBoost - swim.uAmp.value) * approach(4, dt);
     }
 
     /** Swim material with reef caustics dancing over the fish's back. */
@@ -515,13 +516,13 @@ export class FishFrenzyGame {
             f.targetYaw = Math.atan2(-pos.x, -pos.z);
             turnRate = Math.max(turnRate, 1.4);
         }
-        if (pos.y < WORLD.floorY + 2 + length * 0.3) f.targetPitch = 0.3;
+        if (pos.y < floorHeight(pos.x, pos.z) + 2 + length * 0.3) f.targetPitch = 0.3;
         else if (pos.y > WORLD.surfaceY - 2) f.targetPitch = -0.3;
 
         f.yawVelocity = clamp(wrapAngle(f.targetYaw - f.yaw) * 2, -turnRate, turnRate);
         f.yaw += f.yawVelocity * dt;
         f.pitch += clamp((f.targetPitch - f.pitch) * 2, -turnRate, turnRate) * dt;
-        f.speed += (targetSpeed - f.speed) * (1 - Math.exp(-2 * dt));
+        f.speed += (targetSpeed - f.speed) * approach(2, dt);
 
         pos.addScaledVector(forwardOf(f.yaw, f.pitch, _forward), f.speed * dt);
         this.keepInBounds(pos, length);
@@ -549,7 +550,7 @@ export class FishFrenzyGame {
         }
         const rim = CATEGORY_RIM[f.category];
         const skin = f.mesh.material.userData.skin;
-        const blend = 1 - Math.exp(-5 * dt);
+        const blend = approach(5, dt);
         skin.uRimColor.value.lerp(rim.color, blend);
         skin.uRimStrength.value += (rim.strength - skin.uRimStrength.value) * blend;
         const glow = f.chasing ? 0.2 + 0.15 * Math.sin(this.time * 10) : 0;
@@ -630,7 +631,7 @@ export class FishFrenzyGame {
     /** The shield pops instead of you: bounce apart and get a moment of safety. */
     private blockWithShield(f: Fish) {
         this.shields--;
-        this.invulnerable = 1.5;
+        this.invulnerable = SHIELD_GRACE_SECONDS;
         const away = _toPlayer.subVectors(this.player.mesh.position, f.mesh.position).normalize();
         this.player.mesh.position.addScaledVector(away, 1.2);
         f.mesh.position.addScaledVector(away, -1);
@@ -651,7 +652,7 @@ export class FishFrenzyGame {
 
     private die() {
         this.alive = false;
-        this.bursts.spawn(this.player.mesh.position, '#ff6347', 5);
+        this.bursts.spawn(this.player.mesh.position, CATEGORY_COLORS.danger, 5);
         this.player.mesh.visible = false;
         this.shieldBubble.visible = false;
         this.opts.sfx.gameOver();
@@ -695,7 +696,7 @@ export class FishFrenzyGame {
 
     /** Spawns one fish, keeping roughly `dangerFraction` of the population bigger than you. */
     private spawnFish(dangerFraction: number, initial = false) {
-        const playerSize = this.player?.size ?? PLAYER_START_SIZE;
+        const playerSize = this.player.size;
         const dangerCount = this.fish.filter(f => f.size > playerSize * EAT_RATIO).length;
         const wantDanger = dangerCount < this.targetPopulation * dangerFraction;
 
@@ -725,7 +726,7 @@ export class FishFrenzyGame {
         }
 
         const length = lengthOf(size);
-        const playerPos = this.player?.mesh.position ?? new THREE.Vector3();
+        const playerPos = this.player.mesh.position;
         const minDistance = wantDanger ? 28 : 16;
         const pos = new THREE.Vector3();
         for (let attempt = 0; attempt < 12; attempt++) {
@@ -740,9 +741,6 @@ export class FishFrenzyGame {
         const fish = this.addFish(species, pick(SPECIES_SKINS[species.id]), size, pos, initial);
         // A light random tint so no two fish of the same morph look identical.
         fish.mesh.material.color.setHSL(Math.random(), randomIn(0, 0.3), randomIn(0.85, 0.95));
-        const rim = CATEGORY_RIM[fish.category];
-        fish.mesh.material.userData.skin.uRimColor.value.copy(rim.color);
-        fish.mesh.material.userData.skin.uRimStrength.value = rim.strength;
     }
 
     private spawnPowerFish() {
@@ -769,9 +767,11 @@ export class FishFrenzyGame {
         mesh.position.copy(pos);
         const personalSpeed = species.speed * randomIn(0.8, 1.2);
         const yaw = Math.random() * Math.PI * 2;
+        const category = this.categoryOf(size);
+        mesh.material.userData.skin.uRimColor.value.copy(CATEGORY_RIM[category].color);
+        mesh.material.userData.skin.uRimStrength.value = CATEGORY_RIM[category].strength;
         const fish: Fish = {
-            mesh, species, size,
-            category: this.categoryOf(size),
+            mesh, species, size, category,
             yaw, pitch: 0, targetYaw: yaw, targetPitch: 0,
             speed: personalSpeed, personalSpeed, yawVelocity: 0,
             swimSpeed: species.swim.speed * randomIn(0.85, 1.15),
@@ -808,12 +808,12 @@ export class FishFrenzyGame {
             .addScaledVector(_right, length * 0.5);
         _desired.y += 0.4 + length * 0.8;
         _desired.y = Math.max(_desired.y, floorHeight(_desired.x, _desired.z) + 0.6);
-        this.camera.position.lerp(_desired, 1 - Math.exp(-5 * dt));
+        this.camera.position.lerp(_desired, approach(5, dt));
         _lookAt.copy(p.mesh.position).addScaledVector(forwardOf(p.yaw, p.pitch, _fishForward), length * 1.5);
         this.camera.lookAt(_lookAt);
     }
 
-    private drawMap() {
+    private drawMap(canvas: HTMLCanvasElement) {
         const blips: MapBlip[] = this.fish.map(f => ({
             x: f.mesh.position.x,
             z: f.mesh.position.z,
@@ -822,7 +822,7 @@ export class FishFrenzyGame {
             power: f.power && POWER_UPS[f.power].color,
         }));
         const { x, z } = this.player.mesh.position;
-        drawMinimap(this.opts.minimap!, { x, z, yaw: this.player.yaw }, blips);
+        drawMinimap(canvas, { x, z, yaw: this.player.yaw }, blips);
     }
 }
 

@@ -1,36 +1,24 @@
 import * as THREE from 'three';
 import { WORLD } from './config';
 
-/** A soft round sprite so points render as bubbles instead of squares. */
-function bubbleTexture() {
+/** A white radial-gradient sprite, so points render as round dots instead of squares. */
+function radialTexture(stops: [offset: number, alpha: number][]) {
     const size = 64;
     const canvas = document.createElement('canvas');
     canvas.width = canvas.height = size;
     const ctx = canvas.getContext('2d')!;
     const g = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
-    g.addColorStop(0, 'rgba(255,255,255,0.9)');
-    g.addColorStop(0.55, 'rgba(255,255,255,0.35)');
-    g.addColorStop(0.8, 'rgba(255,255,255,0.6)');
-    g.addColorStop(1, 'rgba(255,255,255,0)');
+    for (const [offset, alpha] of stops) g.addColorStop(offset, `rgba(255,255,255,${alpha})`);
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, size, size);
     return new THREE.CanvasTexture(canvas);
 }
 
+/** A bubble: bright centre, faint body, brighter rim. */
+const bubbleTexture = () => radialTexture([[0, 0.9], [0.55, 0.35], [0.8, 0.6], [1, 0]]);
+
 /** A soft glowing dot for sparkles and eat bursts. */
-function glowTexture() {
-    const size = 64;
-    const canvas = document.createElement('canvas');
-    canvas.width = canvas.height = size;
-    const ctx = canvas.getContext('2d')!;
-    const g = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
-    g.addColorStop(0, 'rgba(255,255,255,1)');
-    g.addColorStop(0.3, 'rgba(255,255,255,0.8)');
-    g.addColorStop(1, 'rgba(255,255,255,0)');
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, size, size);
-    return new THREE.CanvasTexture(canvas);
-}
+const glowTexture = () => radialTexture([[0, 1], [0.3, 0.8], [1, 0]]);
 
 /** Ambient bubbles that drift up with a little wobble and wrap back to the floor. */
 export class Bubbles {

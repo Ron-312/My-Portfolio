@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { WORLD } from './config';
 import { CAUSTICS_GLSL, withCaustics, withSway, type OceanUniforms } from './caustics';
+import { pick, randomIn } from './math';
 import type { LoadedModel } from './models';
 
 // Everything that makes the arena look like a reef rather than a blue box:
@@ -22,9 +23,6 @@ export function floorHeight(x: number, z: number) {
         + Math.cos(z * 0.11 + x * 0.05) * 0.5
         + Math.sin(x * 0.9 + z * 0.7) * 0.06; // small ripples
 }
-
-const randomIn = (min: number, max: number) => min + Math.random() * (max - min);
-const pick = <T,>(items: T[]) => items[Math.floor(Math.random() * items.length)];
 
 interface Placement {
     x: number;
