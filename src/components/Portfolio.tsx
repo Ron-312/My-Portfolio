@@ -7,6 +7,15 @@ export default function Portfolio() {
 
     const projects = [
         {
+            id: 3,
+            title: "tonee",
+            description: "AI assistant for Ableton Live that controls the session by voice and chat. A LangChain agent on a cloud backend executes tools on the user's machine over WebSocket, with Whisper speech-to-text and real-time system-audio listening.",
+            image: "/placeholder.jpg",
+            tags: ["LangChain", "LLMs", "Python", "Electron", "Whisper", "WebSocket"],
+            link: "https://tonee.studio",
+            color: "from-orange-500 to-rose-600"
+        },
+        {
             id: 1,
             title: "Deep Search Engine",
             description: "AI-powered search solution that leverages LLMs to provide detailed, well-cited answers by synthesizing information from multiple sources with multi-iteration intelligence and source attribution.",
@@ -67,6 +76,14 @@ export default function Portfolio() {
                 return '🧠';
             case 'JSON Schema':
                 return '📋';
+            case 'LangChain':
+                return '🔗';
+            case 'Electron':
+                return '🖥️';
+            case 'Whisper':
+                return '🎙️';
+            case 'WebSocket':
+                return '🔌';
             case 'Flask':
                 return '🌶️';
             case 'Semantic Search':
