@@ -16,6 +16,15 @@ export default function Portfolio() {
             color: "from-orange-500 to-rose-600"
         },
         {
+            id: 4,
+            title: "PraatPlugin",
+            description: "VST3/AU audio plugin that runs Praat scripts on audio inside the DAW. Parses each script's form block into live controls, with a React UI embedded in a C++/JUCE host. Ships for macOS and Windows.",
+            image: "/placeholder.jpg",
+            tags: ["C++", "JUCE", "React", "Audio", "Praat"],
+            link: "https://github.com/Ron-312/PraatPlugin",
+            color: "from-pink-500 to-fuchsia-600"
+        },
+        {
             id: 1,
             title: "Deep Search Engine",
             description: "AI-powered search solution that leverages LLMs to provide detailed, well-cited answers by synthesizing information from multiple sources with multi-iteration intelligence and source attribution.",
@@ -84,6 +93,16 @@ export default function Portfolio() {
                 return '🎙️';
             case 'WebSocket':
                 return '🔌';
+            case 'C++':
+                return '⚙️';
+            case 'JUCE':
+                return '🎛️';
+            case 'React':
+                return '⚛️';
+            case 'Audio':
+                return '🎧';
+            case 'Praat':
+                return '🗣️';
             case 'Flask':
                 return '🌶️';
             case 'Semantic Search':
