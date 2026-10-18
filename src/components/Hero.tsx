@@ -100,9 +100,10 @@ export default function Hero() {
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ duration: 0.5, delay: 0.2 }}
                         >
-                            Software engineer with expertise in AI, cybersecurity, and data engineering.
-                            Experienced in leading technical teams and building production LLM agents:
-                            context engineering, tool calling, and sandboxed execution.
+                            Software engineer with expertise in AI, cybersecurity, and data engineering,
+                            and experience leading technical teams. I build LLM agents that drive Chromium
+                            and survive site redesigns, and agents with direct control over user environments,
+                            along with the sandboxing that contains their actions.
                         </motion.p>
 
                         <motion.div
