@@ -13,7 +13,8 @@ export default function Portfolio() {
             image: "/placeholder.jpg",
             tags: ["LangChain", "LLMs", "Python", "Electron", "Whisper", "WebSocket"],
             link: "https://tonee.studio",
-            color: "from-orange-500 to-rose-600"
+            logo: "/images/tonee-logo.png",
+            color: "from-[#4b5563] to-[#2f3640]"
         },
         {
             id: 4,
@@ -22,7 +23,8 @@ export default function Portfolio() {
             image: "/placeholder.jpg",
             tags: ["C++", "JUCE", "React", "Audio", "Praat"],
             link: "https://github.com/Ron-312/PraatPlugin",
-            color: "from-pink-500 to-fuchsia-600"
+            logo: "/images/praatplugin-logo.svg",
+            color: "from-[#4a1431] to-[#1c0812]"
         },
         {
             id: 1,
@@ -153,6 +155,14 @@ export default function Portfolio() {
 
                                     {/* Project icon/illustration */}
                                     <div className="absolute inset-0 flex items-center justify-center">
+                                        {project.logo ? (
+                                            // eslint-disable-next-line @next/next/no-img-element
+                                            <img
+                                                src={project.logo}
+                                                alt={`${project.title} logo`}
+                                                className="h-24 w-24 rounded-2xl shadow-lg ring-1 ring-white/10"
+                                            />
+                                        ) : (
                                         <div className="bg-white/20 backdrop-blur-sm p-4 rounded-full">
                                             {project.id === 1 && (
                                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -164,17 +174,8 @@ export default function Portfolio() {
                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                                                 </svg>
                                             )}
-                                            {project.id === 3 && (
-                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
-                                                </svg>
-                                            )}
-                                            {project.id === 4 && (
-                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
-                                                </svg>
-                                            )}
                                         </div>
+                                        )}
                                     </div>
 
                                     {/* Project title overlay on image */}
