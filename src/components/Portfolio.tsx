@@ -14,7 +14,7 @@ export default function Portfolio() {
             tags: ["LangChain", "LLMs", "Python", "Electron", "Whisper", "WebSocket"],
             link: "https://tonee.studio",
             logo: "/images/tonee-logo.png",
-            color: "from-[#1c1c1c] to-[#0a0a0a]"
+            color: "from-[#4b5563] to-[#2f3640]"
         },
         {
             id: 4,
