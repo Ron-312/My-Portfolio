@@ -22,17 +22,6 @@ Personal site of Ron Hershkovitz, a software engineer working on LLM agents, bro
 - [Three.js](https://threejs.org) for Fish Frenzy
 - Hosted on [Netlify](https://www.netlify.com)
 
-## Running locally
-
-```bash
-npm install
-npm run dev
-```
-
-Then open [http://localhost:3000](http://localhost:3000).
-
-`npm run build` writes the static site to `out/`, which is what Netlify publishes.
-
 ## Project layout
 
 ```
