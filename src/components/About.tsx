@@ -8,7 +8,7 @@ export default function About() {
     const skillGroups = [
         { title: "Languages", skills: ["TypeScript", "Python", "JavaScript", "SQL"] },
         { title: "LLM & Agents", skills: ["Anthropic SDK (Claude)", "LangChain", "Tool calling", "Context engineering", "Agent evaluation", "MCP"] },
-        { title: "Browser & Platform", skills: ["Chromium", "Puppeteer", "Playwright", "Node.js", "React", "Electron", "gVisor", "Google Cloud Run"] },
+        { title: "Browser & Platform", skills: ["Chromium", "Puppeteer", "Playwright", "Node.js", "React", "Electron", "gVisor", "GCP"] },
     ];
 
     const [showGame, setShowGame] = useState(false);
