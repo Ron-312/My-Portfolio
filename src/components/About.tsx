@@ -1,20 +1,15 @@
 "use client";
 
 import { motion } from 'framer-motion';
-import { useMemo, useState } from 'react';
-import SkillsVisualization from './SkillsVisualization';
+import { useState } from 'react';
 import FishFrenzy from './FishFrenzy/FishFrenzyMain';
 
 export default function About() {
-    // Use useMemo to memoize the skills array
-    const skills = useMemo(() => [
-        { name: "LLMs / AI", icon: "🤖", color: "bg-purple-50 text-purple-600 border-purple-200" },
-        { name: "SQL", icon: "🗃️", color: "bg-yellow-50 text-yellow-600 border-yellow-200" },
-        { name: "Data Engineering", icon: "📊", color: "bg-indigo-50 text-indigo-600 border-indigo-200" },
-        { name: "Cybersecurity", icon: "🔒", color: "bg-red-50 text-red-600 border-red-200" },
-        { name: "Web Development", icon: "🌐", color: "bg-teal-50 text-teal-600 border-teal-200" },
-        { name: "Machine Learning", icon: "📈", color: "bg-pink-50 text-pink-600 border-pink-200" },
-    ], []);
+    const skillGroups = [
+        { title: "Languages", skills: ["TypeScript", "Python", "JavaScript", "SQL"] },
+        { title: "LLM & Agents", skills: ["Anthropic SDK (Claude)", "LangChain", "Tool calling", "Context engineering", "Agent evaluation", "MCP"] },
+        { title: "Browser & Platform", skills: ["Chromium", "Puppeteer", "Playwright", "Node.js", "React", "Electron", "gVisor", "Google Cloud Run"] },
+    ];
 
     const [showGame, setShowGame] = useState(false);
 
@@ -163,26 +158,24 @@ export default function About() {
                                     Technical Skills
                                 </h3>
 
-                                {/* Use the new component here */}
-                                <SkillsVisualization skills={skills} height="h-72" />
-                            </div>
-                            {/* Regular skills grid */}
-                            {/* <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                                    {skills.map((skill, index) => (
-                                        <motion.div
-                                            key={skill.name}
-                                            initial={{ opacity: 0, y: 20 }}
-                                            whileInView={{ opacity: 1, y: 0 }}
-                                            transition={{ duration: 0.4, delay: index * 0.1 }}
-                                            viewport={{ once: true }}
-                                            className={`flex items-center p-3 rounded-lg border ${skill.color} break-words`}
-                                            whileHover={{ y: -5, transition: { duration: 0.2 } }}
-                                        >
-                                            <span className="text-xl mr-2">{skill.icon}</span>
-                                            <span className="text-sm font-medium">{skill.name}</span>
-                                        </motion.div>
+                                <div className="space-y-5">
+                                    {skillGroups.map((group) => (
+                                        <div key={group.title}>
+                                            <h4 className="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-2">{group.title}</h4>
+                                            <div className="flex flex-wrap gap-2">
+                                                {group.skills.map((skill) => (
+                                                    <span
+                                                        key={skill}
+                                                        className="px-3 py-1 bg-blue-50 text-blue-700 border border-blue-100 rounded-full text-sm font-medium"
+                                                    >
+                                                        {skill}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        </div>
                                     ))}
-                                </div> */}
+                                </div>
+                            </div>
 
                             {/* Improved problem solver card - removed hover animation */}
                             <motion.div
