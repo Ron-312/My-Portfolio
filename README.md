@@ -1,43 +1,46 @@
-# Personal Portfolio - AI & Machine Learning Engineer
+# Ron Hershkovitz — Portfolio
 
-## About Me
-I'm a skilled AI and machine learning engineer with a passion for developing intelligent systems that solve real-world problems. My expertise spans machine learning, large language models (LLMs), data engineering, and cybersecurity, allowing me to build comprehensive end-to-end solutions.
+Personal site of Ron Hershkovitz, a software engineer working on LLM agents, browser automation and sandboxing.
 
-My portfolio showcases my work in predictive modeling, natural language processing, and interactive AI-driven applications.
+**Live:** [portfolio.cloudbrainwave.com](https://portfolio.cloudbrainwave.com)
 
-## ML & AI Specializations
-- **Machine Learning:** Supervised learning models, time series prediction, custom validation techniques
-- **NLP & LLMs:** Building LLM-powered tools, sentiment analysis, text classification
-- **GPU Acceleration:** Leveraging CUDA and GPU computing for performance optimization
-- **Data Engineering:** Creating robust pipelines to support ML systems
-- **AI Application Development:** Web-based AI tools and interactive visualizations
+![Portfolio hero section](docs/screenshot.jpg)
 
-## Featured Projects
-- **Stock Prediction Models:** Advanced supervised learning models for stock price movement classification with GPU acceleration (cuML), custom time series validation, and NLP-derived sentiment analysis
-- **LLM-powered Browsing Agent:** AI-driven browser automation that autonomously navigates web content
-- **Interactive 3D Skills Visualization:** Three.js-based representation of technical competencies
-- **FishFrenzy Game:** Browser-based game demonstrating 3D programming and physics simulation
+## What's on the site
 
-## Technical Stack
-- **Languages:** Python (primary ML language), TypeScript/JavaScript
-- **Machine Learning:** scikit-learn, TensorFlow, PyTorch, cuML
-- **Data Processing:** SQL, Pandas, NumPy
-- **Web Technologies:** React, Next.js, Three.js
-- **AI Tools:** LLM frameworks, NLP libraries, Puppeteer for web automation
+- **About** — background and a grouped technical skills list
+- **Projects** — [tonee](https://tonee.studio), [PraatPlugin](https://github.com/Ron-312/PraatPlugin), [Deep Search Engine](https://github.com/Ron-312/deep-search-engine) and [StockBrain](https://github.com/Ron-312/StockBrain)
+- **Experience** — work history at Reflectiz
+- **Contact** — a form backed by Formspree
+- **Fish Frenzy** — a small Three.js game hidden behind "Wanna play a game?" in the About section
 
-## Running the Project
-Open `http://localhost:3000` to view the portfolio.
+## Stack
 
-## Features
-- **Interactive Visualizations:** 3D representations of skills and technologies
-- **Project Showcase:** Detailed descriptions of ML and AI projects
-- **FishFrenzy Game:** An interactive 3D game demonstrating programming capabilities
-- **Responsive Design:** Fully optimized for all device sizes
+- [Next.js 15](https://nextjs.org) (App Router, static export) with React 19 and TypeScript
+- [Tailwind CSS 4](https://tailwindcss.com) for styling
+- [Framer Motion](https://motion.dev) for animations
+- [Three.js](https://threejs.org) for Fish Frenzy
+- Hosted on [Netlify](https://www.netlify.com)
 
-## Contact
-Feel free to reach out if you're interested in ML collaborations or have questions about my AI work!
+## Running locally
 
----
+```bash
+npm install
+npm run dev
+```
 
-> Built with Next.js and modern web technologies. Deployed on Vercel.
+Then open [http://localhost:3000](http://localhost:3000).
 
+`npm run build` writes the static site to `out/`, which is what Netlify publishes.
+
+## Project layout
+
+```
+src/
+  app/                  layout, page and global styles
+  components/           one component per page section
+    FishFrenzy/         the Three.js game
+public/
+  images/               profile photo and project logos
+  gameModels/           3D models used by Fish Frenzy
+```
