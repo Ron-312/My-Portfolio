@@ -101,8 +101,8 @@ export default function Hero() {
                             transition={{ duration: 0.5, delay: 0.2 }}
                         >
                             Software engineer with expertise in AI, cybersecurity, and data engineering.
-                            Experienced in leading technical teams and developing LLM-powered automation,
-                            sentiment analysis, and large-scale data systems.
+                            Experienced in leading technical teams and building production LLM agents:
+                            context engineering, tool calling, and sandboxed execution.
                         </motion.p>
 
                         <motion.div
