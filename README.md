@@ -2,7 +2,7 @@
 
 Personal site of Ron Hershkovitz, a software engineer working on LLM agents, browser automation and sandboxing.
 
-**Live:** [mysite1312.netlify.app](https://mysite1312.netlify.app)
+**Live:** [portfolio.cloudbrainwave.com](https://portfolio.cloudbrainwave.com)
 
 ![Portfolio hero section](docs/screenshot.jpg)
 
